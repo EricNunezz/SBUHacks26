@@ -59,3 +59,25 @@ export async function getRepoDiagram(repoId) {
 export async function deleteMyRepo(repoId) {
   await request(`/api/me/repos/${repoId}`, { method: "DELETE" });
 }
+
+// Ask the AI about a repo. Only the last 10 messages are sent as history.
+// POST /api/repos/{repoId}/chat  { message, nodeId, history }  ->  { content }
+// TODO: replace this mock with the real endpoint. `mockNodeIds` exists only so the
+// mock can cite real diagram ids; drop it (and the mock) when the backend is wired in.
+export async function sendChatMessage(repoId, { message, nodeId, history = [] }, mockNodeIds = []) {
+  const recent = history.slice(-10); // what the real request will send
+  console.debug("chat request (mock)", repoId, { message, nodeId, history: recent });
+
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+
+  // Cite the attached node first, then a couple of others, so chips can be tested
+  const ids = [...new Set([nodeId, ...mockNodeIds].filter(Boolean))].slice(0, 3);
+  const ref = (i) => (ids[i] ? `[[${ids[i]}]]` : "that part of the app");
+  return {
+    content:
+      `Here's a mock answer to "${message}".\n\n` +
+      `A good place to look is ${ref(0)}, which does most of the work here. ` +
+      `It hands things off to ${ref(1)}, and ${ref(2)} sits behind both.\n\n` +
+      `Start with \`src/App.jsx\` and follow the imports. Unknown ids like [[not_a_real_node]] stay plain text.`,
+  };
+}

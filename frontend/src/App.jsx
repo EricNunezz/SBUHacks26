@@ -23,6 +23,7 @@ import AddRepoDialog from "@/components/add-repo-dialog";
 import StatsPage from "@/pages/StatsPage.jsx";
 import AuthDialog from "@/components/auth-dialog";
 import { AuthProvider, useAuth } from "@/context/AuthContext.jsx";
+import { ChatProvider, useChat } from "@/context/ChatContext.jsx";
 import { getMyRepos, addMyRepo, deleteMyRepo, setUnauthorizedHandler } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -51,8 +52,8 @@ function repoNameFromUrl(url) {
 // Main app layout (sidebar + pages)
 // reposStatus is "loading" | "ready" | "error" (only logged-in users ever see loading/error)
 function Shell({ repos, newestRepoId, reposStatus, onRetry, notice, onAddRepo, onDeleteRepo, onLogout }) {
-  // Chat panel open/closed. Lives here so both the sidebar (toggle) and the layout (panel) can use it.
-  const [chatOpen, setChatOpen] = useState(false);
+  // Chat state is shared (sidebar, panel, node panel, board) through ChatContext
+  const chat = useChat();
   // Add repo dialog. Lives here so the sidebar and the empty state open the same one.
   const [addRepoOpen, setAddRepoOpen] = useState(false);
 
@@ -70,8 +71,8 @@ function Shell({ repos, newestRepoId, reposStatus, onRetry, notice, onAddRepo, o
         onOpenAddRepo={() => setAddRepoOpen(true)}
         onDeleteRepo={onDeleteRepo}
         onLogout={onLogout}
-        chatOpen={chatOpen}
-        onToggleChat={() => setChatOpen((open) => !open)}
+        chatOpen={chat.isOpen}
+        onToggleChat={() => (chat.isOpen && !chat.isCollapsed ? chat.close() : chat.open())}
       />
       <SidebarInset className="h-svh min-w-0">
         <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
@@ -115,9 +116,7 @@ function Shell({ repos, newestRepoId, reposStatus, onRetry, notice, onAddRepo, o
             </Routes>
             )}
           </div>
-          {chatOpen && selectedRepoId && (
-            <ChatPanel onClose={() => setChatOpen(false)} />
-          )}
+          {selectedRepoId && <ChatPanel repoName={selectedRepo?.name} />}
         </div>
       </SidebarInset>
       <AddRepoDialog open={addRepoOpen} onOpenChange={setAddRepoOpen} onAddRepo={onAddRepo} />
@@ -347,9 +346,11 @@ function Gate() {
 export default function App() {
   return (
     <AuthProvider>
-      <Routes>
-        <Route path="*" element={<Gate />} />
-      </Routes>
+      <ChatProvider>
+        <Routes>
+          <Route path="*" element={<Gate />} />
+        </Routes>
+      </ChatProvider>
     </AuthProvider>
   );
 }

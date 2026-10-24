@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Cog } from "lucide-react";
 import RepoNode from "@/components/RepoNode";
@@ -18,6 +18,7 @@ import NodePanel from "@/components/NodePanel";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { getRepoDiagram } from "@/api/client";
+import { useChat } from "@/context/ChatContext";
 import { defaultEdgeOptions, gridProps } from "@/theme/flow";
 
 const nodeTypes = { repoNode: RepoNode };
@@ -51,6 +52,7 @@ function Flow() {
   const [reloadKey, setReloadKey] = useState(0); // bump to re-fetch (Retry / Refresh)
   const [selectedNode, setSelectedNode] = useState(null);
   const { setCenter, fitView } = useReactFlow();
+  const { isOpen: chatOpen, isCollapsed: chatCollapsed, setDiagram } = useChat();
 
   // load the diagram whenever the repo changes (logged-in users only)
   useEffect(() => {
@@ -93,12 +95,54 @@ function Flow() {
     return () => cancelAnimationFrame(frame);
   }, [nodes, fitView]);
 
+  // Select a node, open its panel, and fly the camera to it.
+  // Shared by node clicks on the board and by node chips in the chat.
+  const focusNode = useCallback(
+    (nodeId) => {
+      const node = nodes.find((n) => n.id === nodeId);
+      if (!node) return;
+      setSelectedNode(node);
+      setCenter(node.position.x + NODE_WIDTH / 2, node.position.y + NODE_HEIGHT / 2, {
+        zoom: 1.5,
+        duration: 600,
+      });
+    },
+    [nodes, setCenter],
+  );
+
+  // Tell the chat which nodes exist and how to focus one (cleared when the board goes away)
+  useEffect(() => {
+    setDiagram({ nodes: nodes.map((n) => n.data), focusNode });
+    return () => setDiagram(null);
+  }, [nodes, focusNode, setDiagram]);
+
+  // The chat docks beside the board, so the board changes width. Once the panel's width
+  // transition (300ms) ends, re-center on the open node or fit everything.
+  const selectedRef = useRef(null);
+  selectedRef.current = selectedNode;
+  const firstRun = useRef(true);
+  useEffect(() => {
+    if (firstRun.current) {
+      firstRun.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      const sel = selectedRef.current;
+      if (sel) {
+        setCenter(sel.position.x + NODE_WIDTH / 2, sel.position.y + NODE_HEIGHT / 2, {
+          zoom: 1.5,
+          duration: 300,
+        });
+      } else {
+        fitView({ duration: 300 });
+      }
+    }, 320);
+    return () => clearTimeout(timer);
+  }, [chatOpen, chatCollapsed, setCenter, fitView]);
+
   //nested function to handle clicking a node
   function handleNodeClick(event, node) {
-    setSelectedNode(node);
-    const centerX = node.position.x + NODE_WIDTH / 2;
-    const centerY = node.position.y + NODE_HEIGHT / 2;
-    setCenter(centerX, centerY, { zoom: 1.5, duration: 600 });
+    focusNode(node.id);
   }
 
   //nested function to close the panel (zoom out to everything)
