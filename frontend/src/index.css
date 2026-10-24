@@ -14,32 +14,46 @@ body,
 /* shadcn theme tokens (neutral). Edit these to re-theme the whole UI. */
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --sidebar: hsl(0 0% 98%);
-  --sidebar-foreground: hsl(240 5.3% 26.1%);
-  --sidebar-primary: hsl(240 5.9% 10%);
-  --sidebar-primary-foreground: hsl(0 0% 98%);
-  --sidebar-accent: hsl(240 4.8% 95.9%);
-  --sidebar-accent-foreground: hsl(240 5.9% 10%);
-  --sidebar-border: hsl(220 13% 91%);
-  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+
+  /* Steel and Steam palette. Re-theme the light mode by editing these. */
+  --paper: #F5F2EC; /* page background */
+  --cream: #FBF9F5; /* cards, popovers, panels */
+  --iron: #2B2D31; /* main text */
+  --steel: #8A8F98; /* edges, graph lines, controls border */
+  --steel-text: #5F646C; /* steel darkened so small text passes contrast (5.3:1 on paper) */
+  --steel-line: #D6D3CC; /* subtle borders: steel tint on paper */
+  --copper: #B87333; /* brand mark, category color */
+  --copper-deep: #A5632B; /* copper for filled buttons (white text passes 4.5:1) */
+  --brass: #C9A227;
+  --brass-tint: #EFE5BD; /* brass for hover/secondary surfaces, keeps iron text readable */
+  --grid: color-mix(in srgb, var(--steel) 22%, transparent); /* blueprint grid lines */
+
+  --background: var(--paper);
+  --foreground: var(--iron);
+  --card: var(--cream);
+  --card-foreground: var(--iron);
+  --popover: var(--cream);
+  --popover-foreground: var(--iron);
+  --primary: var(--copper-deep);
+  --primary-foreground: #FFFFFF;
+  --secondary: var(--brass-tint);
+  --secondary-foreground: var(--iron);
+  --muted: #ECE8DF;
+  --muted-foreground: var(--steel-text);
+  --accent: var(--brass-tint);
+  --accent-foreground: var(--iron);
+  --destructive: #B3261E;
+  --border: var(--steel-line);
+  --input: var(--steel-line);
+  --ring: var(--copper);
+  --sidebar: #ECE8DF; /* a step darker than the page */
+  --sidebar-foreground: var(--iron);
+  --sidebar-primary: var(--copper-deep);
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #E1DCD0;
+  --sidebar-accent-foreground: var(--iron);
+  --sidebar-border: var(--steel-line);
+  --sidebar-ring: var(--copper);
 }
 
 .dark {
@@ -103,6 +117,7 @@ body,
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-copper: var(--copper);
 }
 
 @layer base {
@@ -112,4 +127,16 @@ body,
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* React Flow: cream controls with steel border, copper on hover; cream edge labels */
+.react-flow {
+  --xy-controls-button-background-color: var(--cream);
+  --xy-controls-button-background-color-hover: var(--cream);
+  --xy-controls-button-color: var(--steel-text);
+  --xy-controls-button-color-hover: var(--copper);
+  --xy-controls-button-border-color: var(--steel-line);
+  --xy-controls-box-shadow: 0 0 0 1px var(--steel);
+  --xy-edge-label-color: var(--steel-text);
+  --xy-edge-label-background-color: var(--cream);
 }

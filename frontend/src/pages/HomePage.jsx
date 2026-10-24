@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Cog } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import HomeBackground from "@/components/HomeBackground";
@@ -25,6 +26,7 @@ export default function HomePage({ onAddRepo, onLogin }) {
       <div className="relative z-10 flex h-full items-center justify-center px-4 pointer-events-none">
         {/* Card with the optional login link right below it */}
         <div className="flex w-full max-w-md flex-col items-center gap-3">
+        <Cog className="size-10 text-copper" aria-label="App logo" />
         <form
           onSubmit={handleSubmit}
           noValidate

@@ -85,7 +85,7 @@ export default function NodePanel({ node, nodes, edges, onClose }) {
   return (
     <aside
       ref={panelRef}
-      className="absolute right-4 top-4 flex max-h-[calc(100%-2rem)] w-96 flex-col rounded-xl border bg-background shadow-lg"
+      className="absolute right-4 top-4 flex max-h-[calc(100%-2rem)] w-96 flex-col rounded-xl border bg-card shadow-lg"
       style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
     >
       {/* Header: drag handle + buttons */}

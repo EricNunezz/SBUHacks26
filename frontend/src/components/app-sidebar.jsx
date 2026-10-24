@@ -1,3 +1,4 @@
+import { Cog } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -18,6 +19,10 @@ export default function AppSidebar({ repos, selectedRepoId, onOpenAddRepo, onDel
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
+        {/* App mark */}
+        <div className="flex items-center px-2 pt-1 group-data-[collapsible=icon]:justify-center">
+          <Cog className="size-6 text-copper" aria-label="App logo" />
+        </div>
         <RepoSwitcher
           repos={repos}
           selectedRepoId={selectedRepoId}
