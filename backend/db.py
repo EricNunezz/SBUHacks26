@@ -82,3 +82,31 @@ def get_messages(repo_id, node_id):
         .execute()
     )
     return result.data
+
+# --- Per-user repos ---
+# `repos` is a shared cache; `user_repos` (user_id, repo_id, added_at) says which users have which repo.
+
+def link_repo_to_user(user_id, repo_id):
+    # Adding the same pair twice is a no-op
+    supabase.table("user_repos").upsert(
+        {"user_id": user_id, "repo_id": repo_id},
+        on_conflict="user_id,repo_id",
+        ignore_duplicates=True,
+    ).execute()
+
+
+def list_user_repos(user_id):
+    # Join user_repos -> repos, newest added first
+    result = (
+        supabase.table("user_repos")
+        .select("added_at, repos(id, owner, name, url)")
+        .eq("user_id", user_id)
+        .order("added_at", desc=True)
+        .execute()
+    )
+    return [{**row["repos"], "added_at": row["added_at"]} for row in result.data]
+
+
+def unlink_repo_from_user(user_id, repo_id):
+    # Only this user's link is deleted. The shared repos row is never touched.
+    supabase.table("user_repos").delete().eq("user_id", user_id).eq("repo_id", repo_id).execute()
