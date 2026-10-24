@@ -22,6 +22,7 @@ router = APIRouter(tags=["chat"])
 MAX_HISTORY = 10
 README_CHARS = 3000
 MAX_OUTPUT_TOKENS = 800
+CHAT_RETRY_DELAYS = (1,)  # one short retry on a busy primary, then the fallback
 FILE_MAX_LINES = 150
 FILE_MAX_CHARS = 8_000
 NODE_REF = re.compile(r"\[\[([^\[\]]+)\]\]")
@@ -142,14 +143,15 @@ async def chat_with_repo(repo_id: UUID, body: ChatRequest, user_id: str = Depend
     prompt_chars = len(system_prompt) + sum(len(t.parts[0].text) for t in turns)
     config = types.GenerateContentConfig(
         system_instruction=system_prompt,
-        temperature=0.3,
+        temperature=0.4,
         max_output_tokens=MAX_OUTPUT_TOKENS,
+        thinking_config=types.ThinkingConfig(thinking_level="MINIMAL"),  # chat answers need little reasoning
     )
 
     info = {}
     gemini_started = time.perf_counter()
     try:
-        response, _ = await generate_with_retry(turns, config, info)
+        response, _ = await generate_with_retry(turns, config, info, purpose="chat", retry_delays=CHAT_RETRY_DELAYS)
     except HTTPException as e:
         log.warning("chat repo=%s FAILED status=%s retries=%s prompt_chars=%d total=%.2fs",
                     repo_id, e.status_code, info.get("retries"), prompt_chars, time.perf_counter() - started)

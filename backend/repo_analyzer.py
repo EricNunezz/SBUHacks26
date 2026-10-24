@@ -3,6 +3,7 @@ import asyncio
 import logging
 import os
 import re
+import time
 from dotenv import load_dotenv
 from typing import Dict, List, Literal, Optional, Tuple
 import httpx
@@ -14,13 +15,12 @@ from google.genai import types
 
 load_dotenv()
 
-# Initialize Gemini Client
 client = genai.Client()
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 GEMINI_FALLBACK_MODEL = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-3.5-flash-lite")
 RETRY_DELAYS = (2, 5, 10)  
 RETRYABLE_CODES = (429, 500, 503)
-MODEL_UNAVAILABLE_CODES = (403, 404)  # model not found / no permission: retrying won't help
+MODEL_UNAVAILABLE_CODES = (400, 403, 404)  
 MIN_NODES_FOR_BIG_REPO = 4
 BIG_REPO_SOURCE_FILES = 8
 
@@ -288,43 +288,62 @@ def is_temporary(e: Exception) -> bool:
     return getattr(e, "code", None) in RETRYABLE_CODES
 
 
-async def generate_with_retry(contents, config, info: Optional[dict] = None) -> Tuple[types.GenerateContentResponse, str]:
+async def generate_with_retry(
+    contents,
+    config,
+    info: Optional[dict] = None,
+    *,
+    purpose: str = "diagram",
+    retry_delays: Optional[Tuple[float, ...]] = None,
+    model: Optional[str] = None,
+) -> Tuple[types.GenerateContentResponse, str]:
     """Calls Gemini with the primary model, retrying temporary failures, then tries the fallback model once.
-    A model-not-found or permission error on the primary skips the retries and goes straight to the fallback.
+    `retry_delays` (default RETRY_DELAYS) are the waits before each retry; chat passes a short one so a busy
+    primary costs about a second before the fallback. `model` overrides the primary model.
+    A bad-request, model-not-found or permission error on the primary skips the retries and goes straight to the fallback.
     Returns (response, model used). Raises 503 when the AI is overloaded and 502 for anything else
     (never 401, which the frontend treats as a logged-out user).
     If `info` is given it is filled with {"model", "fallback", "retries"} for logging."""
     info = info if info is not None else {}
     info.update(model=None, fallback=False, retries=0)
+    primary = model or GEMINI_MODEL
+    delays = RETRY_DELAYS if retry_delays is None else retry_delays
+    started = time.perf_counter()
+    attempts = 0
 
-    async def generate(model):
-        response = await client.aio.models.generate_content(model=model, contents=contents, config=config)
-        info["model"], info["fallback"] = model, model == GEMINI_FALLBACK_MODEL
-        return response, model
+    async def generate(model_name):
+        nonlocal attempts
+        attempts += 1
+        try:
+            response = await client.aio.models.generate_content(model=model_name, contents=contents, config=config)
+        except Exception as e:
+            log.warning("gemini[%s] attempt %d model=%s failed code=%s", purpose, attempts, model_name, getattr(e, "code", None))
+            raise
+        info["model"], info["fallback"] = model_name, model_name == GEMINI_FALLBACK_MODEL
+        log.info(
+            "gemini[%s] ok attempt %d model=%s (%s) total=%.2fs",
+            purpose, attempts, model_name, "fallback" if info["fallback"] else "primary", time.perf_counter() - started,
+        )
+        return response, model_name
 
     try:
-        for delay in (0, *RETRY_DELAYS):
+        for delay in (0, *delays):
             await asyncio.sleep(delay)
             try:
-                result = await generate(GEMINI_MODEL)
-                log.info("Gemini call succeeded with %s", GEMINI_MODEL)
-                return result
+                return await generate(primary)
             except Exception as e:
                 if getattr(e, "code", None) in MODEL_UNAVAILABLE_CODES:
                     log.warning(
-                        "Gemini primary model %s is unavailable (%s). Check GEMINI_MODEL and API access. Using the fallback.",
-                        GEMINI_MODEL, e,
+                        "Gemini primary model %s can't serve this request (%s). Check GEMINI_MODEL, API access and config. Using the fallback.",
+                        primary, e,
                     )
                     break
                 if not is_temporary(e):
                     raise
                 info["retries"] += 1
-                log.warning("Gemini %s failed temporarily (%s), retrying", GEMINI_MODEL, e)
-        result = await generate(GEMINI_FALLBACK_MODEL)
-        log.info("Gemini call succeeded with fallback %s", GEMINI_FALLBACK_MODEL)
-        return result
+        return await generate(GEMINI_FALLBACK_MODEL)
     except Exception as e:
-        log.error("Gemini call failed: %s", e)
+        log.error("gemini[%s] failed after %d attempts, total=%.2fs: %s", purpose, attempts, time.perf_counter() - started, e)
         if is_temporary(e):
             raise HTTPException(status_code=503, detail="The AI is busy right now, please try again in a minute")
         raise HTTPException(status_code=502, detail=f"Gemini request failed: {e}")
@@ -383,9 +402,8 @@ async def analyze_repo_with_gemini(owner: str, repo_name: str, repo_url: str) ->
         response_mime_type="application/json",
         response_schema=RepoAnalysisResponse,
         temperature=0.2,
+        thinking_config=types.ThinkingConfig(thinking_level="LOW"),  # a modest amount of reasoning
     )
-
-    used = {}  # which model produced the answer
 
     used = {}  # which model produced the answer
 
