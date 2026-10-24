@@ -1,4 +1,5 @@
 import { getAccessToken } from "@/context/AuthContext";
+import { supabase } from "@/lib/supabase";
 
 // Error with the HTTP status attached, so callers can check for 401 etc.
 export class ApiError extends Error {
@@ -69,20 +70,33 @@ export async function deleteMyRepo(repoId) {
 // POST /api/repos/{repoId}/chat  { message, node_id, history }  ->  { content }
 // TODO: replace this mock with the real endpoint. `mockNodeIds` exists only so the
 // mock can cite real diagram ids; drop it (and the mock) when the backend is wired in.
-export async function sendChatMessage(repoId, { message, nodeId, history = [] }, mockNodeIds = []) {
-  const recent = history.slice(-10); // what the real request will send
-  console.debug("chat request (mock)", repoId, { message, node_id: nodeId, history: recent });
+export async function sendChatMessage(repoId, { message, nodeId, history = [] }) {
+  // 1. Get the current active user session token from Supabase
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
 
-  await new Promise((resolve) => setTimeout(resolve, 1000));
+  // 2. Make the HTTP POST request to your FastAPI backend chat endpoint
+  const response = await fetch(`http://localhost:8000/api/repos/${repoId}/chat`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { "Authorization": `Bearer ${token}` } : {})
+    },
+    body: JSON.stringify({
+      message: message,
+      node_id: nodeId,
+      history: history.map(h => ({
+        role: h.role === "user" ? "user" : "ai",
+        content: h.content
+      }))
+    })
+  });
 
-  // Cite the attached node first, then a couple of others, so chips can be tested
-  const ids = [...new Set([nodeId, ...mockNodeIds].filter(Boolean))].slice(0, 3);
-  const ref = (i) => (ids[i] ? `[[${ids[i]}]]` : "that part of the app");
-  return {
-    content:
-      `Here's a mock answer to "${message}".\n\n` +
-      `A good place to look is ${ref(0)}, which does most of the work here. ` +
-      `It hands things off to ${ref(1)}, and ${ref(2)} sits behind both.\n\n` +
-      `Start with \`src/App.jsx\` and follow the imports. Unknown ids like [[not_a_real_node]] stay plain text.`,
-  };
+  if (!response.ok) {
+    const errData = await response.json().catch(() => ({}));
+    throw new Error(errData.detail || "Failed to get response from AI assistant.");
+  }
+
+  // 3. Returns the JSON containing the real Gemini reply: { content: "..." }
+  return await response.json();
 }
