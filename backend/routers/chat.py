@@ -170,10 +170,13 @@ async def chat_with_repo(repo_id: UUID, body: ChatRequest, user_id: str = Depend
     if file_path and snippet is None:
         answer += f"\n\n(I couldn't load `{file_path}`, so this answer doesn't use its code.)"
 
-    try:
-        await asyncio.to_thread(db.save_message, str(repo_id), body.node_id, "user", body.message, file_path)
-        await asyncio.to_thread(db.save_message, str(repo_id), body.node_id, "assistant", answer)
-    except Exception as e:
-        log.warning("Couldn't save chat messages: %s", e)
+    # Save both sides of the exchange. The AI row's role must be "ai" (the chat_messages check constraint only
+    # allows "user" or "ai"), and it carries the same node_id / file_path as the question it answers. A failed
+    # save is logged with the database's error, but the user still gets their reply.
+    for role, content, path in (("user", body.message, file_path), ("ai", answer, file_path)):
+        try:
+            await asyncio.to_thread(db.save_message, str(repo_id), body.node_id, role, content, path)
+        except Exception:
+            log.exception("chat repo=%s: could not save the %r message (node_id=%s)", repo_id, role, body.node_id)
 
     return {"content": answer}

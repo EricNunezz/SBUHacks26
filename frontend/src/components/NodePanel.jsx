@@ -26,31 +26,36 @@ export default function NodePanel({ node, nodes, edges, repoUrl, onViewFile, onC
   return (
     <aside
       ref={panelRef}
-      className="absolute right-4 top-4 flex max-h-[calc(100%-2rem)] w-96 flex-col rounded-xl border bg-card shadow-lg"
+      className="absolute right-4 top-4 flex max-h-[calc(100%-2rem)] w-96 flex-col overflow-hidden bg-card cartoon-panel"
       style={getStyle()}
     >
       {/* Header: drag handle + buttons */}
       <div
-        className="flex cursor-grab select-none items-center justify-between border-b px-5 py-3 active:cursor-grabbing"
+        className="relative flex shrink-0 cursor-grab select-none items-center justify-between border-b-[3px] border-[var(--iron)] bg-[var(--rail-green)] px-6 py-3 text-[var(--cream)] active:cursor-grabbing"
         {...dragProps}
       >
+        {/* brass bolts in the corners of the header plate */}
+        <span aria-hidden className="absolute left-1.5 top-1.5 size-2.5 rounded-full border-2 border-[var(--iron)] bg-[var(--brass)]" />
+        <span aria-hidden className="absolute right-1.5 top-1.5 size-2.5 rounded-full border-2 border-[var(--iron)] bg-[var(--brass)]" />
+        <span aria-hidden className="absolute bottom-1.5 left-1.5 size-2.5 rounded-full border-2 border-[var(--iron)] bg-[var(--brass)]" />
+        <span aria-hidden className="absolute bottom-1.5 right-1.5 size-2.5 rounded-full border-2 border-[var(--iron)] bg-[var(--brass)]" />
         {/* Notion-style toggle: chevron + title collapse the panel */}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="flex min-w-0 items-center gap-1 rounded text-left hover:bg-muted"
+          className="flex min-w-0 items-center gap-1 rounded text-left hover:bg-[var(--rail-green-light)]"
           aria-label={collapsed ? "Expand" : "Collapse"}
           aria-expanded={!collapsed}
         >
           <ChevronRight
-            className={`size-5 shrink-0 text-muted-foreground transition-transform duration-150 ${
+            className={`size-5 shrink-0 text-[var(--cream)] transition-transform duration-150 ${
               collapsed ? "" : "rotate-90"
             }`}
           />
-          <h2 className="truncate text-lg font-semibold">{label}</h2>
+          <h2 className="truncate text-lg font-bold">{label}</h2>
         </button>
         <button
           onClick={onClose}
-          className="rounded px-2 text-muted-foreground hover:bg-muted"
+          className="rounded px-2 text-[var(--cream)] hover:bg-[var(--rail-green-light)]"
           aria-label="Close"
         >
           ✕
@@ -62,7 +67,7 @@ export default function NodePanel({ node, nodes, edges, repoUrl, onViewFile, onC
         <div className="overflow-y-auto p-5">
           <button
             onClick={() => openChat(asNode)}
-            className="mb-5 flex items-center gap-2 rounded-md border border-[var(--copper)] px-3 py-1.5 text-sm text-[var(--copper-deep)] hover:bg-[var(--copper)]/10"
+            className="btn-cartoon mb-5 flex items-center gap-2 px-3 py-1.5 text-sm"
           >
             <MessageSquare className="size-4" />
             Ask about this
@@ -101,7 +106,7 @@ export default function NodePanel({ node, nodes, edges, repoUrl, onViewFile, onC
                 {files.map((file) => {
                   const slash = file.lastIndexOf("/");
                   return (
-                    <li key={file} className="mb-1 flex items-center gap-1 rounded bg-muted px-2 py-1">
+                    <li key={file} className="relative mb-2 flex items-center gap-1 rounded-md border-2 border-[var(--iron)] bg-[var(--paper)] py-1 pl-7 pr-2 shadow-[2px_2px_0_var(--iron)] before:absolute before:left-2 before:top-1/2 before:size-3 before:-translate-y-1/2 before:rounded-full before:border-2 before:border-[var(--iron)] before:bg-[var(--cream)] before:content-['']">
                       <button
                         type="button"
                         onClick={() => onViewFile(file)}
@@ -114,7 +119,7 @@ export default function NodePanel({ node, nodes, edges, repoUrl, onViewFile, onC
                       <DropdownMenu modal={false}>
                         <DropdownMenuTrigger
                           aria-label={`Actions for ${file}`}
-                          className="shrink-0 rounded p-1 hover:bg-background"
+                          className="shrink-0 rounded p-1 hover:bg-[var(--brass-tint)]"
                         >
                           <MoreHorizontal className="size-4" />
                         </DropdownMenuTrigger>
@@ -149,7 +154,7 @@ export default function NodePanel({ node, nodes, edges, repoUrl, onViewFile, onC
 function Section({ title, children }) {
   return (
     <section className="mb-5">
-      <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <h3 className="mb-2 font-mono text-xs font-bold uppercase tracking-[0.15em] text-[var(--brass-deep)]">
         {title}
       </h3>
       {children}

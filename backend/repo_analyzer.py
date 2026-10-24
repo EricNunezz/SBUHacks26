@@ -349,9 +349,12 @@ async def generate_with_retry(
         raise HTTPException(status_code=502, detail=f"Gemini request failed: {e}")
 
 
-async def analyze_repo_with_gemini(owner: str, repo_name: str, repo_url: str) -> dict:
-    """Scans the repo via GitHub API and uses Gemini to generate the structural JSON."""
+async def analyze_repo_with_gemini(owner: str, repo_name: str, repo_url: str, max_files: Optional[int] = None) -> dict:
+    """Scans the repo via GitHub API and uses Gemini to generate the structural JSON.
+    With max_files set, a repo whose tree GitHub truncated (or with more files than that) is rejected with a 422."""
     file_paths, branch, tree_truncated = await fetch_github_file_tree(owner, repo_name)
+    if max_files is not None and (tree_truncated or len(file_paths) > max_files):
+        raise HTTPException(status_code=422, detail="This line is too big to map right now")
     repo_slug = f"{owner}/{repo_name}"
     file_list = "\n".join(file_paths[:MAX_TREE_PATHS])
     content = await fetch_repo_content(owner, repo_name, branch, file_paths)

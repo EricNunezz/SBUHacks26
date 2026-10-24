@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Cog } from "lucide-react";
+import { Check, Cog } from "lucide-react";
 import RepoNode from "@/components/RepoNode";
-import LabeledEdge from "@/components/LabeledEdge";
+import RailEdge from "@/components/RailEdge";
+import SceneryNode from "@/components/SceneryNode";
 import {
   ReactFlow,
   ReactFlowProvider,
-  Background,
-  BackgroundVariant,
   Controls,
   getViewportForBounds,
   useReactFlow,
@@ -15,21 +14,26 @@ import {
 import "@xyflow/react/dist/style.css";
 
 import { layoutGraph, NODE_WIDTH, NODE_HEIGHT } from "@/utils/layout";
+import { routeDiagram } from "@/utils/rails";
+import { placeScenery } from "@/utils/scenery";
 import sampleRepo from "@/mock/sampleRepo.json"; // shown to guests, who have no backend ids
 import NodePanel from "@/components/NodePanel";
 import CodeViewer from "@/components/CodeViewer";
-import { useSidebar } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
-import { addMyRepo, getRepoDiagram } from "@/api/client";
+import { addMyRepo, getExploreRepo, getRepoDiagram } from "@/api/client";
 import AddRepoProgress from "@/pages/AddRepoProgress.jsx";
 import { useChat } from "@/context/ChatContext";
-import { defaultEdgeOptions, gridProps } from "@/theme/flow";
+import { defaultEdgeOptions } from "@/theme/flow";
+import GrassBackground from "@/components/GrassBackground";
 
-const nodeTypes = { repoNode: RepoNode };
-const edgeTypes = { labeled: LabeledEdge };
+const nodeTypes = { repoNode: RepoNode, scenery: SceneryNode };
+const edgeTypes = { rail: RailEdge };
 
 const PANEL_INSET = 416; // NodePanel: w-96 (384) + right-4 (16) + a 16px gap
+// Fit with breathing room, but never smaller than readable; a wide diagram just overflows and can be panned
+// Default view: fit the stations; never zoom out past minZoom so names stay readable
+const FIT = { padding: 0.08, minZoom: 0.5, maxZoom: 1.1 };
 const FOCUS_ZOOM = { min: 0.6, max: 1.1 };
 
 
@@ -51,10 +55,11 @@ function SpinnerMessage({ children }) {
 }
 
 //the actual board that lives INSIDE the provider so it can use useReactFlow()
-function Flow() {
+// explore: a featured repo opened from /explore/:repoId (public, read-only). repos/onAddRepo power "Add to my repos".
+function Flow({ explore = false, repos = [], onAddRepo }) {
   const { repoId } = useParams();
   const { user } = useAuth();
-  const isGuest = !user;
+  const isGuest = !user && !explore; // guests on the home flow see the sample board
 
   // fetch state: "loading" | "error" | "done", plus the diagram that was fetched.
   // `forId` records which repo the state belongs to, so a stale state is never shown for a new repo.
@@ -73,7 +78,7 @@ function Flow() {
     if (isGuest) return;
     let cancelled = false;
     setFetched({ forId: repoId, state: "loading", diagram: null });
-    getRepoDiagram(repoId)
+    (explore ? getExploreRepo : getRepoDiagram)(repoId)
       .then((diagram) => {
         if (!cancelled) setFetched({ forId: repoId, state: "done", diagram });
       })
@@ -83,15 +88,16 @@ function Flow() {
     return () => {
       cancelled = true; // a newer request (or unmount) wins over this one
     };
-  }, [repoId, isGuest, reloadKey]);
+  }, [repoId, isGuest, explore, reloadKey]);
 
   // guests see the mock; users see the fetched data. Only "ready" diagrams have nodes to draw.
   const diagram = isGuest ? sampleRepo : fetched.diagram;
   const ready = isGuest || (fetched.state === "done" && diagram?.status === "ready");
 
   // convert to react flow format, then lay it out with dagre
-  const { nodes, edges } = useMemo(() => {
-    if (!ready) return { nodes: [], edges: [] };
+  // `nodes` are the stations; `flowNodes` adds the non-interactive scenery for React Flow to draw
+  const { nodes, edges, flowNodes } = useMemo(() => {
+    if (!ready) return { nodes: [], edges: [], flowNodes: [] };
     const rfNodes = diagram.nodes.map((node) => ({
       id: node.id,
       type: "repoNode",
@@ -99,16 +105,45 @@ function Flow() {
       data: node,
     }));
     const { nodes: laidOut } = layoutGraph(rfNodes, diagram.edges);
-    const rfEdges = diagram.edges.map((e) => ({ ...e, type: "labeled" }));
-    return { nodes: laidOut, edges: rfEdges };
-  }, [ready, diagram]);
+    // give every edge its own station ports, track lane and label position
+    const routed = routeDiagram(laidOut, diagram.edges);
+    const scenery = placeScenery(diagram.id ?? repoId, routed.nodes, routed.tracks, routed.labelRects).map((d) => ({
+      id: d.id,
+      type: "scenery",
+      position: { x: d.x, y: d.y },
+      data: { kind: d.kind, scale: d.scale, flip: d.flip },
+      draggable: false,
+      selectable: false,
+      connectable: false,
+      focusable: false,
+      deletable: false,
+      zIndex: -1, // behind the stations
+      style: { pointerEvents: "none" },
+    }));
+    return { nodes: routed.nodes, edges: routed.edges, flowNodes: [...scenery, ...routed.nodes] };
+  }, [ready, diagram, repoId]);
+
+  // Default view (and the Controls "fit view" button): frame the stations, with a little padding.
+  // The zoom floor keeps text readable; a very wide diagram then overflows and can be panned.
+  const fitBoard = useCallback(
+    (duration) =>
+      fitView({
+        nodes: nodes.map((n) => ({ id: n.id })),
+        padding: FIT.padding,
+        minZoom: FIT.minZoom,
+        maxZoom: FIT.maxZoom,
+        duration,
+      }),
+    [nodes, fitView],
+  );
+  const fitStations = useCallback(() => fitBoard(400), [fitBoard]);
 
   // fit the view once a new diagram has been laid out (wait a frame so the nodes are mounted)
   useEffect(() => {
     if (!nodes.length) return;
-    const frame = requestAnimationFrame(() => fitView({ duration: 400 }));
+    const frame = requestAnimationFrame(() => fitBoard(400));
     return () => cancelAnimationFrame(frame);
-  }, [nodes, fitView]);
+  }, [nodes, fitBoard]);
 
   // Fit the node's bounds into the part of the board left of the NodePanel
   const flyTo = useCallback(
@@ -137,7 +172,7 @@ function Flow() {
 
   // Tell the chat which nodes exist and how to focus one (cleared when the board goes away)
   useEffect(() => {
-    setDiagram({ nodes: nodes.map((n) => n.data), focusNode });
+    setDiagram({ nodes: nodes.map(({ data: { ports, ...data } }) => data), focusNode }); // ports is render-only
     return () => setDiagram(null);
   }, [nodes, focusNode, setDiagram]);
 
@@ -159,7 +194,7 @@ function Flow() {
       timer = setTimeout(() => {
         const sel = selectedRef.current;
         if (sel) flyTo(sel, 300);
-        else fitView({ duration: 300 });
+        else fitBoard(300);
       }, 150);
     });
     observer.observe(el);
@@ -167,29 +202,7 @@ function Flow() {
       observer.disconnect();
       clearTimeout(timer);
     };
-  }, [ready, flyTo, fitView]);
-
-  // Collapse the left sidebar while the code panel is open, then put it back the way the user had it
-  const { open: sidebarOpen, setOpen: setSidebarOpen, isMobile } = useSidebar();
-  const sidebarOpenRef = useRef(sidebarOpen);
-  sidebarOpenRef.current = sidebarOpen;
-  const collapsedByViewer = useRef(false);
-  useEffect(() => {
-    if (isMobile) return;
-    if (viewing && !collapsedByViewer.current && sidebarOpenRef.current) {
-      collapsedByViewer.current = true;
-      setSidebarOpen(false);
-    } else if (!viewing && collapsedByViewer.current) {
-      collapsedByViewer.current = false;
-      setSidebarOpen(true);
-    }
-  }, [Boolean(viewing), isMobile]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(
-    () => () => {
-      if (collapsedByViewer.current) setSidebarOpen(true); // leaving the board (e.g. to Stats) restores it too
-    },
-    [], // eslint-disable-line react-hooks/exhaustive-deps
-  );
+  }, [ready, flyTo, fitBoard]);
 
   //nested function to handle clicking a node
   function handleNodeClick(event, node) {
@@ -200,7 +213,7 @@ function Flow() {
   function handleClose() {
     if (!selectedNode) return;
     setSelectedNode(null);
-    fitView({ duration: 600 });
+    fitBoard(600);
   }
 
   // Which state to show (logged-in users); guests skip straight to the board
@@ -222,6 +235,13 @@ function Flow() {
         </Centered>
       );
     }
+    if (diagram.status === "pending" && explore) {
+      return (
+        <Centered>
+          <p>This line isn't ready yet. Check back soon.</p>
+        </Centered>
+      );
+    }
     if (diagram.status === "pending") {
       // Nothing is generating this repo (e.g. its diagram was cleared), so start it here
       return (
@@ -237,23 +257,38 @@ function Flow() {
 
   return (
     <div ref={boardRef} className="relative h-full w-full animate-in fade-in duration-500">
+      {explore && (
+        <div className="absolute left-1/2 top-3 z-10 flex -translate-x-1/2 items-center gap-3 rounded-lg border-2 border-[var(--iron)] bg-[var(--cream)] px-3 py-1.5 text-xs shadow-[3px_3px_0_var(--iron)]">
+          <span className="font-mono font-bold uppercase tracking-wider text-[var(--brass-deep)]">Featured line</span>
+          <span className="font-semibold">{diagram.owner}/{diagram.name}</span>
+          {user ? (
+            repos.some((r) => r.id === diagram.id) ? (
+              <span className="flex items-center gap-1 font-semibold"><Check className="size-3.5" /> In your repos</span>
+            ) : (
+              <Button size="sm" onClick={() => onAddRepo(diagram.url)}>Add to my repos</Button>
+            )
+          ) : (
+            <span className="text-muted-foreground">Sign up to save it</span>
+          )}
+        </div>
+      )}
       {isGuest && (
         <div className="absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-md border bg-card px-3 py-1 text-xs text-muted-foreground shadow-sm">
           Sample diagram. Sign up to map your own repos
         </div>
       )}
       <ReactFlow
-        nodes={nodes}
+        nodes={flowNodes}
         edges={edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
-        fitView
+        minZoom={0.3}
         onNodeClick={handleNodeClick}
         onPaneClick={handleClose}
       >
-        <Background variant={BackgroundVariant.Lines} {...gridProps} />
-        <Controls />
+        <GrassBackground />
+        <Controls onFitView={fitStations} />
       </ReactFlow>
       {selectedNode && (
         <NodePanel
@@ -276,6 +311,7 @@ function Flow() {
           node={viewing.node}
           repoId={repoId}
           repoUrl={diagram.url}
+          explore={explore}
           onClose={() => setViewing(null)}
           onAsk={(file) =>
             askAbout(`What does ${file.slice(file.lastIndexOf("/") + 1)} do?`, viewing.node, file)
@@ -286,10 +322,10 @@ function Flow() {
   );
 }
 
-export default function DiagramBoard() {
+export default function DiagramBoard(props) {
   return (
     <ReactFlowProvider>
-      <Flow />
+      <Flow {...props} />
     </ReactFlowProvider>
   );
 }

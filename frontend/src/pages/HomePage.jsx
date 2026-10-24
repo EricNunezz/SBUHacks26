@@ -6,7 +6,7 @@ import HomeBackground from "@/components/HomeBackground";
 import { normalizeGithubUrl } from "@/utils/github";
 
 // onLogin is only passed on the logged-out view; it shows the "Log in" link
-export default function HomePage({ onAddRepo, onLogin }) {
+export default function HomePage({ onAddRepo, onLogin, onExplore }) {
   const [repo, setRepo] = useState(""); // whatever the user pastes; normalized on submit
   const [error, setError] = useState("");
 
@@ -48,6 +48,14 @@ export default function HomePage({ onAddRepo, onLogin }) {
           </div>
           {error && <p className="text-xs text-destructive">{error}</p>}
         </form>
+        {onExplore && (
+          <div className="pointer-events-auto w-full space-y-2 rounded-lg border-2 border-[var(--iron)] bg-card p-4 text-center shadow-[4px_4px_0_var(--iron)]">
+            <p className="text-sm font-semibold">Don't know where to start? Board one of our featured lines</p>
+            <Button type="button" variant="outline" onClick={onExplore}>
+              See the timetable
+            </Button>
+          </div>
+        )}
         {onLogin && (
           <p className="pointer-events-auto text-xs text-muted-foreground">
             Already have an account?{" "}
