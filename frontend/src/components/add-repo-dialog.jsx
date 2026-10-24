@@ -8,9 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-
-// Accepts https://github.com/owner/repo (optional trailing slash)
-const GITHUB_URL = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/?$/;
+import { isValidGithubUrl } from "@/utils/github";
 
 // Popup with a GitHub URL input. Calls onAddRepo(url) only for valid URLs.
 export default function AddRepoDialog({ open, onOpenChange, onAddRepo }) {
@@ -20,7 +18,7 @@ export default function AddRepoDialog({ open, onOpenChange, onAddRepo }) {
   function handleSubmit(e) {
     e.preventDefault(); // don't reload the page
     const trimmed = url.trim();
-    if (!GITHUB_URL.test(trimmed)) {
+    if (!isValidGithubUrl(trimmed)) {
       setError("Enter a link like https://github.com/owner/repo");
       return;
     }

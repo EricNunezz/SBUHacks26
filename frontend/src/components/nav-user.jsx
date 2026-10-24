@@ -1,4 +1,4 @@
-import { ChevronsUpDown, LogOut, Settings, User } from "lucide-react";
+import { ChevronsUpDown, LogIn, LogOut, Settings, User as UserIcon } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -14,9 +14,11 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 
-// Footer user menu. Placeholder user; menu items don't do anything yet.
-export default function NavUser({ user }) {
+// Footer user menu. `user` is the Supabase user, or null for guests.
+// onLogout signs out (if needed), clears saved state and returns home.
+export default function NavUser({ user, onLogout }) {
   const { isMobile } = useSidebar();
+  const label = user?.email ?? "Guest";
 
   return (
     <SidebarMenu>
@@ -28,9 +30,9 @@ export default function NavUser({ user }) {
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <Avatar className="size-8 rounded-lg">
-                <AvatarFallback className="rounded-lg">{user.name[0]}</AvatarFallback>
+                <AvatarFallback className="rounded-lg">{label[0].toUpperCase()}</AvatarFallback>
               </Avatar>
-              <span className="flex-1 truncate text-left text-sm font-medium">{user.name}</span>
+              <span className="flex-1 truncate text-left text-sm font-medium">{label}</span>
               <ChevronsUpDown className="ml-auto size-4" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
@@ -40,16 +42,25 @@ export default function NavUser({ user }) {
             align="end"
             sideOffset={4}
           >
-            <DropdownMenuItem>
-              <User className="size-4" /> Profile
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Settings className="size-4" /> Settings
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <LogOut className="size-4" /> Log out
-            </DropdownMenuItem>
+            {user ? (
+              <>
+                <DropdownMenuItem>
+                  <UserIcon className="size-4" /> Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <Settings className="size-4" /> Settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={onLogout}>
+                  <LogOut className="size-4" /> Log out
+                </DropdownMenuItem>
+              </>
+            ) : (
+              // Guest: go back to the home page to log in
+              <DropdownMenuItem onSelect={onLogout}>
+                <LogIn className="size-4" /> Log in
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>

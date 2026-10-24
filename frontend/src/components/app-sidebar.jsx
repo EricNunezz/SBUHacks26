@@ -9,17 +9,21 @@ import RepoSwitcher from "@/components/repo-switcher";
 import NavRepo from "@/components/nav-repo";
 import BackendStatus from "@/components/backend-status";
 import NavUser from "@/components/nav-user";
-
-// Placeholder user until real auth exists
-const user = { name: "Eric" };
+import { useAuth } from "@/context/AuthContext";
 
 // The whole sidebar: repo switcher (top), nav (middle), status + user (bottom).
 // collapsible="icon" makes it shrink to an icon strip instead of hiding.
-export default function AppSidebar({ repos, selectedRepoId, onAddRepo, chatOpen, onToggleChat }) {
+export default function AppSidebar({ repos, selectedRepoId, onOpenAddRepo, onDeleteRepo, onLogout, chatOpen, onToggleChat }) {
+  const { user } = useAuth(); // null for guests
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <RepoSwitcher repos={repos} selectedRepoId={selectedRepoId} onAddRepo={onAddRepo} />
+        <RepoSwitcher
+          repos={repos}
+          selectedRepoId={selectedRepoId}
+          onOpenAddRepo={onOpenAddRepo}
+          onDeleteRepo={onDeleteRepo}
+        />
       </SidebarHeader>
       <SidebarContent>
         <NavRepo
@@ -30,7 +34,7 @@ export default function AppSidebar({ repos, selectedRepoId, onAddRepo, chatOpen,
       </SidebarContent>
       <SidebarFooter>
         <BackendStatus />
-        <NavUser user={user} />
+        <NavUser user={user} onLogout={onLogout} />
       </SidebarFooter>
       {/* Thin draggable edge that also toggles collapse */}
       <SidebarRail />
