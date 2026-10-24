@@ -68,10 +68,6 @@ function Flow() {
   );
 }
 
-
-
-
-
 export default function DiagramBoard() {
   return (
     <ReactFlowProvider>
