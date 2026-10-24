@@ -12,7 +12,7 @@ from pydantic import BaseModel
 load_dotenv()
 
 import db  # noqa: E402
-from repo_analyzer import analyze_repo_with_gemini  # <--- Imported from our new file
+from mapping import MAX_MAPPABLE_FILES, get_or_create_repo, normalize_github_url  # noqa: E402
 
 
 app = FastAPI(title="Repo Architecture Diagram API")
@@ -76,39 +76,15 @@ async def add_my_repo(body: AddRepoBody, user_id: str = Depends(get_current_user
     owner, name = match.groups()
     url = f"https://github.com/{owner}/{name}"
 
-    # Check if the repo is already analyzed and cached in your DB
-    repo = await asyncio.to_thread(db.get_repo_by_url, url)
-
-    # Placeholder rows (diagram is null) get generated here too
-    if not repo or not repo.get("diagram"):
-        analyzed_data = await analyze_repo_with_gemini(owner, name, url)
-        diagram = {"nodes": analyzed_data["nodes"], "edges": analyzed_data["edges"]}
-
-        if repo:
-            repo = await asyncio.to_thread(db.update_repo_diagram, repo["id"], analyzed_data["summary"], diagram, analyzed_data["github_context"])
-        else:
-            try:
-                repo = await asyncio.to_thread(db.save_repo, owner, name, url, analyzed_data["summary"], diagram, analyzed_data["github_context"])
-            except Exception as e:
-                if "unique constraint" in str(e).lower() or "23505" in str(e):
-                    repo = await asyncio.to_thread(db.get_repo_by_url, url)
-                    if not repo:
-                        raise HTTPException(status_code=500, detail="Failed to save or retrieve repository.")
-                else:
-                    raise e
+    # Cache first; placeholder rows and missing repos get generated (shared with the catalog flow)
+    repo = await get_or_create_repo(owner, name, url)
 
     await asyncio.to_thread(db.link_repo_to_user, user_id, repo["id"])
     return repo
 
 
-@app.get("/api/repos/{repo_id}")
-def get_repo_diagram(repo_id: UUID, user_id: str = Depends(get_current_user_id)):
-    """One repo's diagram. 404 whether the repo is missing or just not in this user's list."""
-    repo_id = str(repo_id)
-    repo = db.get_repo(repo_id) if db.user_has_repo(user_id, repo_id) else None
-    if not repo:
-        raise HTTPException(status_code=404, detail="Repo not found")
-
+def repo_response(repo: dict) -> dict:
+    """The diagram payload shared by /api/repos/{id} and /api/explore/{id}."""
     diagram = repo.get("diagram") or {}
     return {
         "id": repo["id"],
@@ -120,6 +96,97 @@ def get_repo_diagram(repo_id: UUID, user_id: str = Depends(get_current_user_id))
         "edges": diagram.get("edges", []),
         "status": "ready" if repo.get("diagram") else "pending",
     }
+
+
+@app.get("/api/repos/{repo_id}")
+def get_repo_diagram(repo_id: UUID, user_id: str = Depends(get_current_user_id)):
+    """One repo's diagram. 404 whether the repo is missing or just not in this user's list."""
+    repo_id = str(repo_id)
+    repo = db.get_repo(repo_id) if db.user_has_repo(user_id, repo_id) else None
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repo not found")
+    return repo_response(repo)
+
+
+# --- Public featured repos (no auth) ---
+
+@app.get("/api/explore")
+def explore():
+    """Featured repos, in featured_order. The diagram itself is not sent, just its node count."""
+    return [
+        {
+            "id": r["id"],
+            "owner": r["owner"],
+            "name": r["name"],
+            "url": r["url"],
+            "summary": r.get("summary"),
+            "featured_tags": r.get("featured_tags") or [],
+            "node_count": len((r.get("diagram") or {}).get("nodes", [])),
+        }
+        for r in db.list_featured_repos()
+    ]
+
+
+@app.get("/api/explore/{repo_id}")
+def explore_repo(repo_id: UUID):
+    """Same shape as /api/repos/{id}, readable by guests, but only for featured repos and repos linked from the catalog."""
+    repo = db.get_explorable_repo(str(repo_id))
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repo not found")
+    return repo_response(repo)
+
+
+# --- Beginner catalog ---
+
+def diagram_preview(diagram: dict) -> dict:
+    """A light copy of a diagram for the catalog cards: node ids + categories and edge endpoints, nothing else."""
+    return {
+        "nodes": [{"id": n.get("id"), "category": n.get("category")} for n in diagram.get("nodes", [])],
+        "edges": [{"source": e.get("source"), "target": e.get("target")} for e in diagram.get("edges", [])],
+    }
+
+
+@app.get("/api/catalog")
+def get_catalog():
+    """Beginner-friendly repos grouped by language (A to Z). Mapped entries (a diagram exists) come first, then by name."""
+    groups: dict[str, list] = {}
+    for row in db.list_catalog():
+        diagram = (row.get("repos") or {}).get("diagram")
+        mapped = bool(row.get("repo_id") and diagram)
+        groups.setdefault(row["language"], []).append({
+            "id": row["id"],
+            "name": row["name"],
+            "owner": row["owner"],
+            "repo": row["repo"],
+            "url": row["url"],
+            "label": row.get("label"),
+            "description": row.get("description"),
+            "mapped": mapped,
+            "repo_id": row["repo_id"] if mapped else None,
+            "preview": diagram_preview(diagram) if mapped else None,
+        })
+    return [
+        {"language": language, "entries": sorted(entries, key=lambda e: (not e["mapped"], e["name"].casefold()))}
+        for language, entries in sorted(groups.items(), key=lambda kv: kv[0].casefold())
+    ]
+
+
+@app.post("/api/catalog/{catalog_id}/map")
+async def map_catalog_entry(catalog_id: UUID, user_id: str = Depends(get_current_user_id)):
+    """Maps a catalog repo (cache aware), links it to the catalog and to the user, and returns its repo id."""
+    entry = await asyncio.to_thread(db.get_catalog_entry, str(catalog_id))
+    if not entry:
+        raise HTTPException(status_code=404, detail="Catalog entry not found")
+    parsed = normalize_github_url(entry["url"])
+    if not parsed:
+        raise HTTPException(status_code=422, detail="This entry isn't a GitHub repository")
+    owner, name, url = parsed
+
+    # Too-big repos are rejected before any AI work (the size check runs right after the file tree is fetched)
+    repo = await get_or_create_repo(owner, name, url, max_files=MAX_MAPPABLE_FILES)
+    await asyncio.to_thread(db.set_catalog_repo, entry["url"], repo["id"])
+    await asyncio.to_thread(db.link_repo_to_user, user_id, repo["id"])
+    return {"repo_id": repo["id"]}
 
 
 @app.delete("/api/me/repos/{repo_id}", status_code=204)

@@ -22,6 +22,7 @@ router = APIRouter(tags=["chat"])
 MAX_HISTORY = 10
 README_CHARS = 3000
 MAX_OUTPUT_TOKENS = 800
+CHAT_RETRY_DELAYS = (1,)  # one short retry on a busy primary, then the fallback
 FILE_MAX_LINES = 150
 FILE_MAX_CHARS = 8_000
 NODE_REF = re.compile(r"\[\[([^\[\]]+)\]\]")
@@ -142,14 +143,15 @@ async def chat_with_repo(repo_id: UUID, body: ChatRequest, user_id: str = Depend
     prompt_chars = len(system_prompt) + sum(len(t.parts[0].text) for t in turns)
     config = types.GenerateContentConfig(
         system_instruction=system_prompt,
-        temperature=0.3,
+        temperature=0.4,
         max_output_tokens=MAX_OUTPUT_TOKENS,
+        thinking_config=types.ThinkingConfig(thinking_level="MINIMAL"),  # chat answers need little reasoning
     )
 
     info = {}
     gemini_started = time.perf_counter()
     try:
-        response, _ = await generate_with_retry(turns, config, info)
+        response, _ = await generate_with_retry(turns, config, info, purpose="chat", retry_delays=CHAT_RETRY_DELAYS)
     except HTTPException as e:
         log.warning("chat repo=%s FAILED status=%s retries=%s prompt_chars=%d total=%.2fs",
                     repo_id, e.status_code, info.get("retries"), prompt_chars, time.perf_counter() - started)
@@ -168,10 +170,13 @@ async def chat_with_repo(repo_id: UUID, body: ChatRequest, user_id: str = Depend
     if file_path and snippet is None:
         answer += f"\n\n(I couldn't load `{file_path}`, so this answer doesn't use its code.)"
 
-    try:
-        await asyncio.to_thread(db.save_message, str(repo_id), body.node_id, "user", body.message, file_path)
-        await asyncio.to_thread(db.save_message, str(repo_id), body.node_id, "assistant", answer)
-    except Exception as e:
-        log.warning("Couldn't save chat messages: %s", e)
+    # Save both sides of the exchange. The AI row's role must be "ai" (the chat_messages check constraint only
+    # allows "user" or "ai"), and it carries the same node_id / file_path as the question it answers. A failed
+    # save is logged with the database's error, but the user still gets their reply.
+    for role, content, path in (("user", body.message, file_path), ("ai", answer, file_path)):
+        try:
+            await asyncio.to_thread(db.save_message, str(repo_id), body.node_id, role, content, path)
+        except Exception:
+            log.exception("chat repo=%s: could not save the %r message (node_id=%s)", repo_id, role, body.node_id)
 
     return {"content": answer}

@@ -7,38 +7,31 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  useSidebar,
-} from "@/components/ui/sidebar";
 
-// Footer user menu. `user` is the Supabase user, or null for guests.
+// Top bar user menu (a conductor's badge). `user` is the Supabase user, or null for guests.
 // onLogout signs out (if needed), clears saved state and returns home.
 export default function NavUser({ user, onLogout }) {
-  const { isMobile } = useSidebar();
   const label = user?.email ?? "Guest";
 
   return (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <SidebarMenuButton
-              size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-            >
-              <Avatar className="size-8 rounded-lg">
-                <AvatarFallback className="rounded-lg">{label[0].toUpperCase()}</AvatarFallback>
-              </Avatar>
-              <span className="flex-1 truncate text-left text-sm font-medium">{label}</span>
-              <ChevronsUpDown className="ml-auto size-4" />
-            </SidebarMenuButton>
-          </DropdownMenuTrigger>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="relative flex h-11 items-center gap-2 overflow-hidden rounded-lg border-2 border-[var(--iron)] bg-[var(--cream)] px-2 text-left text-[var(--iron)] shadow-[3px_3px_0_var(--iron)] hover:-translate-x-px hover:-translate-y-px active:translate-x-0.5 active:translate-y-0.5"
+        >
+          {/* Conductor's badge: brass clip at the top */}
+          <span aria-hidden className="absolute left-1/2 top-0 h-1.5 w-8 -translate-x-1/2 rounded-b-sm border-2 border-t-0 border-[var(--iron)] bg-[var(--brass)]" />
+          <Avatar className="size-7 rounded-full border-2 border-[var(--iron)]">
+            <AvatarFallback className="rounded-full bg-[var(--brass)] font-bold text-[var(--iron)]">{label[0].toUpperCase()}</AvatarFallback>
+          </Avatar>
+          <span className="hide-compact max-w-36 truncate text-sm font-semibold">{label}</span>
+          <ChevronsUpDown className="hide-compact size-4 shrink-0" />
+        </button>
+      </DropdownMenuTrigger>
           <DropdownMenuContent
-            className="w-(--radix-dropdown-menu-trigger-width) min-w-48 rounded-lg"
-            side={isMobile ? "bottom" : "right"}
+            className="min-w-48 rounded-lg"
+            side="bottom"
             align="end"
             sideOffset={4}
           >
@@ -62,8 +55,6 @@ export default function NavUser({ user, onLogout }) {
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>
-        </DropdownMenu>
-      </SidebarMenuItem>
-    </SidebarMenu>
+    </DropdownMenu>
   );
 }

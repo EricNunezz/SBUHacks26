@@ -37,6 +37,11 @@ export function ChatProvider({ children }) {
     setAttachedNode(node);
     setAttachedFile(file);
   }, []);
+  // Expand the panel (from the rail button) without touching the attached node / file
+  const reveal = useCallback(() => {
+    setIsOpen(true);
+    setIsCollapsed(false);
+  }, []);
   const askAbout = useCallback((text, node = null, file = null) => {
     open(node, file);
     setPrefill({ text });
@@ -121,7 +126,7 @@ export function ChatProvider({ children }) {
           const node = nodes.get(m.node_id);
           return {
             id: m.id,
-            role: m.role === "user" ? "user" : "assistant",
+            role: m.role === "user" ? "user" : "assistant", // saved as "user" / "ai"; "ai" renders as a conductor reply
             content: m.content,
             node: node ? { id: node.id, label: node.label, category: node.category } : null,
             file: m.file_path ?? null,
@@ -140,10 +145,10 @@ export function ChatProvider({ children }) {
   const value = useMemo(
     () => ({
       repoId, isOpen, isCollapsed, attachedNode, attachedFile, messages, diagram, prefill,
-      open, askAbout, setPrefill, close, collapse, expand, attach, detach, detachFile,
+      open, reveal, askAbout, setPrefill, close, collapse, expand, attach, detach, detachFile,
       sendMessage, retryMessage, clearChat, setDiagram,
     }),
-    [repoId, isOpen, isCollapsed, attachedNode, attachedFile, threads, diagram, prefill, askAbout, sendMessage, retryMessage, clearChat],
+    [repoId, isOpen, isCollapsed, attachedNode, attachedFile, threads, diagram, prefill, reveal, askAbout, sendMessage, retryMessage, clearChat],
   );
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

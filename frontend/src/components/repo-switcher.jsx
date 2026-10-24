@@ -20,12 +20,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  useSidebar,
-} from "@/components/ui/sidebar";
 
 // "owner/repo" -> { owner, name }
 function splitName(fullName) {
@@ -33,9 +27,8 @@ function splitName(fullName) {
   return { owner, name };
 }
 
-// Replaces sidebar-07's team switcher: pick a repo or add a new one.
+// Top bar repo switcher, styled as a ticket stub: pick a repo or add a new one.
 export default function RepoSwitcher({ repos, selectedRepoId, onOpenAddRepo, onDeleteRepo }) {
-  const { isMobile } = useSidebar();
   const navigate = useNavigate();
   const [repoToDelete, setRepoToDelete] = useState(null); // repo awaiting confirmation
 
@@ -43,28 +36,25 @@ export default function RepoSwitcher({ repos, selectedRepoId, onOpenAddRepo, onD
   const info = selected ? splitName(selected.name) : null;
 
   return (
-    <SidebarMenu>
-      <SidebarMenuItem>
+    <>
+      <div className="ticket-item">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <SidebarMenuButton
-              size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-            >
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+            <button type="button" className="ticket ticket-right topbar-ticket flex items-center gap-2">
+              <div className="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg border-2 border-[var(--iron)] bg-[var(--brass)] text-[var(--iron)]">
                 <GitBranch className="size-4" />
               </div>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{info ? info.name : "Select a repo"}</span>
-                <span className="truncate text-xs">{info ? info.owner : "No repo selected"}</span>
+              <div className="hide-compact grid min-w-0 flex-1 text-left text-sm leading-tight">
+                <span className="truncate font-bold">{info ? info.name : "Select a repo"}</span>
+                <span className="truncate font-mono text-[11px]">{info ? info.owner : "No repo selected"}</span>
               </div>
-              <ChevronsUpDown className="ml-auto" />
-            </SidebarMenuButton>
+              <ChevronsUpDown className="hide-compact absolute right-2 top-1/2 -translate-y-1/2" />
+            </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
+            className="min-w-56 rounded-lg"
             align="start"
-            side={isMobile ? "bottom" : "right"}
+            side="bottom"
             sideOffset={4}
           >
             <DropdownMenuLabel className="text-xs text-muted-foreground">Repos</DropdownMenuLabel>
@@ -117,7 +107,7 @@ export default function RepoSwitcher({ repos, selectedRepoId, onOpenAddRepo, onD
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-      </SidebarMenuItem>
+      </div>
 
       {/* Delete confirmation, outside the dropdown so it stays open after the menu closes */}
       <AlertDialog
@@ -142,6 +132,6 @@ export default function RepoSwitcher({ repos, selectedRepoId, onOpenAddRepo, onD
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </SidebarMenu>
+    </>
   );
 }

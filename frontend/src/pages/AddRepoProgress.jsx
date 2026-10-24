@@ -14,7 +14,7 @@ const STEPS = [
 
 // Shown while a repo is being added. runAdd() resolves with the new repo (or throws);
 // onComplete(repo) fires after the cog fills; onAddDifferent() leaves after an error.
-export default function AddRepoProgress({ name, runAdd, onComplete, onAddDifferent }) {
+export default function AddRepoProgress({ name, runAdd, onComplete, onAddDifferent, differentLabel = "Add a different repo" }) {
   const { progress, slow, start, finish, stop } = useEstimatedProgress();
   const [attempt, setAttempt] = useState(0);
   const [error, setError] = useState("");
@@ -63,7 +63,7 @@ export default function AddRepoProgress({ name, runAdd, onComplete, onAddDiffere
             <Button onClick={() => setAttempt((n) => n + 1)}>Try again</Button>
             {onAddDifferent && (
               <Button variant="outline" onClick={onAddDifferent}>
-                Add a different repo
+                {differentLabel}
               </Button>
             )}
           </div>

@@ -9,22 +9,18 @@ import {
   useMatch,
   useNavigate,
 } from "react-router-dom";
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
-import AppSidebar from "@/components/app-sidebar";
+import TopBar from "@/components/top-bar";
 import ChatPanel from "@/components/chat-panel";
 import DiagramBoard from "@/components/DiagramBoard.jsx";
 import HomePage from "@/pages/HomePage.jsx";
 import EmptyRepoState from "@/pages/EmptyRepoState.jsx";
 import AddRepoDialog from "@/components/add-repo-dialog";
 import StatsPage from "@/pages/StatsPage.jsx";
+import ExplorePage from "@/pages/ExplorePage.jsx";
 import AddRepoProgress from "@/pages/AddRepoProgress.jsx";
 import AuthDialog from "@/components/auth-dialog";
 import { AuthProvider, useAuth } from "@/context/AuthContext.jsx";
-import { ChatProvider, useChat } from "@/context/ChatContext.jsx";
+import { ChatProvider } from "@/context/ChatContext.jsx";
 import { getMyRepos, addMyRepo, deleteMyRepo, setUnauthorizedHandler } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -56,39 +52,41 @@ function Shell({
   onAddRepo,
   onDeleteRepo,
   onLogout,
+  onReposChanged,
 }) {
-  // Chat state is shared (sidebar, panel, node panel, board) through ChatContext
-  const chat = useChat();
-  // Add repo dialog. Lives here so the sidebar and the empty state open the same one.
+  // Add repo dialog. Lives here so the top bar and the empty state open the same one.
   const [addRepoOpen, setAddRepoOpen] = useState(false);
 
   // The selected repo comes from the URL (/repo/:repoId and anything under it)
   const match = useMatch("/repo/:repoId/*");
   const selectedRepoId = match?.params.repoId;
   const selectedRepo = repos.find((r) => r.id === selectedRepoId);
+  // Off a repo page (e.g. on Explore), The Map / The Inspection still work: they open the last repo you viewed, else the newest
+  const lastRepoId = useRef(null);
+  if (selectedRepoId) lastRepoId.current = selectedRepoId;
+  const navRepoId = selectedRepoId ?? repos.find((r) => r.id === lastRepoId.current)?.id ?? newestRepoId;
   const onStats = Boolean(useMatch("/repo/:repoId/stats")); // no chat on the static Stats page
+  // Featured repos: /explore (the timetable) and /explore/:repoId (a featured map)
+  const exploreRepoId = useMatch("/explore/:repoId")?.params.repoId;
+  const onExplore = Boolean(useMatch("/explore/*") || useMatch("/explore"));
+  const { user } = useAuth();
+  const exploreChatMessage = !user
+    ? "Sign up to ask the conductor"
+    : repos.some((r) => r.id === exploreRepoId)
+      ? "Open this line from your repos to ask the conductor"
+      : "Add this line to your repos to ask the conductor";
 
   return (
-    // SidebarProvider holds the collapsed/expanded state
-    <SidebarProvider>
-      <AppSidebar
+    <div className="flex h-svh min-w-0 flex-col">
+      <TopBar
         repos={repos}
         selectedRepoId={selectedRepoId}
+        fallbackRepoId={navRepoId}
         onOpenAddRepo={() => setAddRepoOpen(true)}
         onDeleteRepo={onDeleteRepo}
         onLogout={onLogout}
-        chatOpen={chat.isOpen}
-        onToggleChat={() => (chat.isOpen && !chat.isCollapsed ? chat.close() : chat.open())}
+        notice={notice}
       />
-      <SidebarInset className="h-svh min-w-0">
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
-          <SidebarTrigger />
-          <span className="text-sm text-muted-foreground">
-            {selectedRepo ? selectedRepo.name : "No repo selected"}
-          </span>
-          {/* Failed add/delete message */}
-          {notice && <span className="ml-auto text-xs text-destructive">{notice}</span>}
-        </header>
         {/* Page on the left, optional chat panel on the right */}
         <div className="flex min-h-0 flex-1">
           <div className="min-w-0 flex-1">
@@ -131,15 +129,17 @@ function Shell({
               {/* Placeholder: every repo shows the same board until real data is wired in */}
               <Route path="/repo/:repoId" element={<DiagramBoard />} />
               <Route path="/repo/:repoId/stats" element={<StatsPage />} />
+              <Route path="/explore" element={<ExplorePage onMapped={onReposChanged} onSignUp={onLogout} />} />
+              <Route path="/explore/:repoId" element={<DiagramBoard explore repos={repos} onAddRepo={onAddRepo} />} />
             </Routes>
             </div>
             )}
           </div>
           {selectedRepoId && !onStats && <ChatPanel repoName={selectedRepo?.name} />}
+          {exploreRepoId && <ChatPanel repoName="Featured line" blockedMessage={exploreChatMessage} />}
         </div>
-      </SidebarInset>
       <AddRepoDialog open={addRepoOpen} onOpenChange={setAddRepoOpen} onAddRepo={onAddRepo} />
-    </SidebarProvider>
+    </div>
   );
 }
 
@@ -326,7 +326,8 @@ function Gate() {
     );
   }
 
-  if (user || entered) {
+  const onExplorePath = pathname === "/explore" || pathname.startsWith("/explore/");
+  if (user || entered || onExplorePath) {
     // Already inside: sidebar's Add repo skips the popup
     return (
       <Shell
@@ -353,6 +354,7 @@ function Gate() {
         onAddRepo={(url) => (user ? addRepoAsUser(url, userRepos) : addRepoAsGuest(url))}
         onDeleteRepo={deleteRepoFromList}
         onLogout={handleLogout}
+        onReposChanged={() => (user ? refreshUserRepos().catch(() => {}) : undefined)}
       />
     );
   }
@@ -362,7 +364,7 @@ function Gate() {
 
   return (
     <div className="h-svh">
-      <HomePage onAddRepo={handleHomeSubmit} onLogin={() => setLoginOpen(true)} />
+      <HomePage onAddRepo={handleHomeSubmit} onLogin={() => setLoginOpen(true)} onExplore={() => navigate("/explore")} />
       {/* Mode comes from pendingRepoUrl: set = "Save your repo", empty = "Welcome back" */}
       <AuthDialog
         open={Boolean(pendingRepoUrl) || loginOpen}
