@@ -46,6 +46,9 @@ def get_current_user_id(authorization: str | None = Header(default=None)) -> str
     return response.user.id
 
 
+from routers.stats import router as stats_router; app.include_router(stats_router)  # noqa: E402 (needs get_current_user_id defined above)
+
+
 # --- Per-user repos ---
 
 class AddRepoBody(BaseModel):

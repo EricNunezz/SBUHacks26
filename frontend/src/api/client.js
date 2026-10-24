@@ -55,6 +55,11 @@ export async function getRepoDiagram(repoId) {
   return request(`/api/repos/${repoId}`);
 }
 
+// One repo's stats: { fetched_at, repo, activity, community, issues, languages }; any section may be null
+export async function getRepoStats(repoId) {
+  return request(`/api/repos/${repoId}/stats`);
+}
+
 // Remove a repo from the user's list only
 export async function deleteMyRepo(repoId) {
   await request(`/api/me/repos/${repoId}`, { method: "DELETE" });
