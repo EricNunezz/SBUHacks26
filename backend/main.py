@@ -1,6 +1,6 @@
 """FastAPI entry point. Run with: uvicorn main:app --reload --port 8000"""
-import os
 import re
+from uuid import UUID
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Response
@@ -76,6 +76,27 @@ def add_my_repo(body: AddRepoBody, user_id: str = Depends(get_current_user_id)):
 
     db.link_repo_to_user(user_id, repo["id"])
     return repo
+
+
+@app.get("/api/repos/{repo_id}")
+def get_repo_diagram(repo_id: UUID, user_id: str = Depends(get_current_user_id)):
+    """One repo's diagram. 404 whether the repo is missing or just not in this user's list."""
+    repo_id = str(repo_id)
+    repo = db.get_repo(repo_id) if db.user_has_repo(user_id, repo_id) else None
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repo not found")
+
+    diagram = repo.get("diagram") or {}
+    return {
+        "id": repo["id"],
+        "owner": repo["owner"],
+        "name": repo["name"],
+        "url": repo["url"],
+        "summary": repo.get("summary"),
+        "nodes": diagram.get("nodes", []),
+        "edges": diagram.get("edges", []),
+        "status": "ready" if repo.get("diagram") else "pending",
+    }
 
 
 @app.delete("/api/me/repos/{repo_id}", status_code=204)

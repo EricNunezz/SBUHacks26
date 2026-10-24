@@ -50,6 +50,11 @@ export async function addMyRepo(url) {
   return toRepo(await request("/api/me/repos", { method: "POST", body: JSON.stringify({ url }) }));
 }
 
+// One repo's diagram: { id, owner, name, url, summary, nodes, edges, status: "ready" | "pending" }
+export async function getRepoDiagram(repoId) {
+  return request(`/api/repos/${repoId}`);
+}
+
 // Remove a repo from the user's list only
 export async function deleteMyRepo(repoId) {
   await request(`/api/me/repos/${repoId}`, { method: "DELETE" });

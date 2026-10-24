@@ -107,6 +107,18 @@ def list_user_repos(user_id):
     return [{**row["repos"], "added_at": row["added_at"]} for row in result.data]
 
 
+def user_has_repo(user_id, repo_id):
+    result = (
+        supabase.table("user_repos")
+        .select("repo_id")
+        .eq("user_id", user_id)
+        .eq("repo_id", repo_id)
+        .limit(1)
+        .execute()
+    )
+    return bool(result.data)
+
+
 def unlink_repo_from_user(user_id, repo_id):
     # Only this user's link is deleted. The shared repos row is never touched.
     supabase.table("user_repos").delete().eq("user_id", user_id).eq("repo_id", repo_id).execute()

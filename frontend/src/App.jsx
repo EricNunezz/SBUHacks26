@@ -21,7 +21,6 @@ import HomePage from "@/pages/HomePage.jsx";
 import EmptyRepoState from "@/pages/EmptyRepoState.jsx";
 import AddRepoDialog from "@/components/add-repo-dialog";
 import StatsPage from "@/pages/StatsPage.jsx";
-import SignupPage from "@/pages/SignupPage.jsx";
 import AuthDialog from "@/components/auth-dialog";
 import { AuthProvider, useAuth } from "@/context/AuthContext.jsx";
 import { getMyRepos, addMyRepo, deleteMyRepo, setUnauthorizedHandler } from "@/api/client";
@@ -51,7 +50,7 @@ function repoNameFromUrl(url) {
 
 // Main app layout (sidebar + pages)
 // reposStatus is "loading" | "ready" | "error" (only logged-in users ever see loading/error)
-function Shell({ repos, reposStatus, onRetry, notice, onAddRepo, onDeleteRepo, onLogout }) {
+function Shell({ repos, newestRepoId, reposStatus, onRetry, notice, onAddRepo, onDeleteRepo, onLogout }) {
   // Chat panel open/closed. Lives here so both the sidebar (toggle) and the layout (panel) can use it.
   const [chatOpen, setChatOpen] = useState(false);
   // Add repo dialog. Lives here so the sidebar and the empty state open the same one.
@@ -104,7 +103,7 @@ function Shell({ repos, reposStatus, onRetry, notice, onAddRepo, onDeleteRepo, o
                 path="/"
                 element={
                   repos.length ? (
-                    <Navigate to={`/repo/${repos[repos.length - 1].id}`} replace />
+                    <Navigate to={`/repo/${newestRepoId}`} replace />
                   ) : (
                     <EmptyRepoState onAdd={() => setAddRepoOpen(true)} />
                   )
@@ -139,6 +138,8 @@ function Gate() {
   const [notice, setNotice] = useState(""); // error from a failed add / delete
   const loadSeq = useRef(0); // lets a newer list fetch win over an older one
   const repos = user ? userRepos : guestRepos;
+  // Backend list is newest first; the guest list is in append order (newest last)
+  const newestRepoId = (user ? repos[0] : repos[repos.length - 1])?.id;
   const [entered, setEntered] = useState(Boolean(saved?.entered)); // guests only: true after "Continue as guest"
   // The URL waiting for the user to finish the popup (restored after a refresh)
   const [pendingRepoUrl, setPendingRepoUrl] = useState(loadPendingRepo);
@@ -308,6 +309,7 @@ function Gate() {
     return (
       <Shell
         repos={repos}
+        newestRepoId={newestRepoId}
         reposStatus={user ? reposStatus : "ready"}
         onRetry={() => {
           setReposStatus("loading");
@@ -346,8 +348,6 @@ export default function App() {
   return (
     <AuthProvider>
       <Routes>
-        {/* Placeholder, reachable directly */}
-        <Route path="/signup" element={<SignupPage />} />
         <Route path="*" element={<Gate />} />
       </Routes>
     </AuthProvider>
