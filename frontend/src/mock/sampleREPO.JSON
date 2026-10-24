@@ -1,0 +1,53 @@
+{
+  "id": "repo_001",
+  "name": "jdoe/todo-app",
+  "url": "https://github.com/jdoe/todo-app",
+  "summary": "A todo list web app. Users add, check off, and delete tasks. The website is built with React and talks to a Python Flask server that saves tasks in a database.",
+  "nodes": [
+    {
+      "id": "web",
+      "label": "Web App",
+      "category": "frontend",
+      "summary": "The part of the project users actually see and click on. It shows the todo list and sends changes to the server.",
+      "key_points": ["Built with React", "TodoList.jsx renders every task", "Calls the API whenever a task changes"],
+      "files": ["client/src/App.jsx", "client/src/components/TodoList.jsx"]
+    },
+    {
+      "id": "api",
+      "label": "API Server",
+      "category": "backend",
+      "summary": "The middleman between the website and the database. It receives requests like 'add this task' and handles them.",
+      "key_points": ["Built with Flask", "Routes live in server/routes/", "Validates data before saving"],
+      "files": ["server/app.py", "server/routes/todos.py"]
+    },
+    {
+      "id": "models",
+      "label": "Data Models",
+      "category": "backend",
+      "summary": "Defines what a 'task' looks like in code, like its title and whether it's done.",
+      "key_points": ["Uses SQLAlchemy", "One Task model"],
+      "files": ["server/models.py"]
+    },
+    {
+      "id": "db",
+      "label": "Database",
+      "category": "database",
+      "summary": "Where tasks are stored so they're still there after you close the page.",
+      "key_points": ["SQLite file", "Created on first run"],
+      "files": ["server/todo.db"]
+    },
+    {
+      "id": "config",
+      "label": "Setup & Dependencies",
+      "category": "config",
+      "summary": "Lists the libraries the project needs and how to install them.",
+      "key_points": ["requirements.txt for Python", "package.json for React"],
+      "files": ["requirements.txt", "client/package.json"]
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "web", "target": "api", "label": "sends requests to" },
+    { "id": "e2", "source": "api", "target": "models", "label": "uses" },
+    { "id": "e3", "source": "models", "target": "db", "label": "reads/writes" }
+  ]
+}
