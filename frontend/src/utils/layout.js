@@ -1,8 +1,8 @@
 
 import dagre from "@dagrejs/dagre";
 
-const NODE_WIDTH = 200;
-const NODE_HEIGHT = 70;
+export const NODE_WIDTH = 200;
+export const NODE_HEIGHT = 70;
 
 export function layoutDiagram(nodes, edges){
   //make the empty graph and set the direction (Top -> bottom) & spacing between nodes 
