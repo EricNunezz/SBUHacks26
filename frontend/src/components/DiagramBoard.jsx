@@ -13,6 +13,7 @@ import "@xyflow/react/dist/style.css";
 import {layoutDiagram, NODE_WIDTH, NODE_HEIGHT } from "@/utils/layout";
 import sampleRepo from "@/mock/sampleRepo.json"; //sample repo for testing purposes "
 import NodePanel from "@/components/NodePanel";
+import { defaultEdgeOptions, gridProps } from "@/theme/flow";
 
 // convert mock JSON into react flow format, then lay it out with dagre
 const mockNodes = sampleRepo.nodes.map((node) => ({
@@ -48,11 +49,12 @@ function Flow() {
       <ReactFlow
         nodes={layoutedNodes}
         edges={mockEdges}
+        defaultEdgeOptions={defaultEdgeOptions}
         fitView
         onNodeClick={handleNodeClick}
         onPaneClick={handleClose}
       >
-        <Background variant={BackgroundVariant.Dots} gap={16}/>
+        <Background variant={BackgroundVariant.Lines} {...gridProps} />
         <Controls />
       </ReactFlow>
       {selectedNode && (

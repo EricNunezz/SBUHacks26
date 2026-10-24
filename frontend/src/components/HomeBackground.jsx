@@ -3,32 +3,28 @@ import "@xyflow/react/dist/style.css";
 
 import { layoutDiagram } from "@/utils/layout";
 import homeDiagram from "@/mock/homeDiagram.json";
-
-// Muted category colors: low-alpha tints so they sit quietly on both light and dark themes
-const CATEGORY_COLORS = {
-  frontend: "oklch(0.65 0.1 250)",
-  backend: "oklch(0.65 0.1 160)",
-  database: "oklch(0.7 0.1 75)",
-  external: "oklch(0.65 0.1 330)",
-  infra: "oklch(0.6 0.02 260)",
-};
+import { getCategoryTheme } from "@/theme/categories";
+import { defaultEdgeOptions, gridProps } from "@/theme/flow";
 
 // Mock JSON -> React Flow nodes, then lay out left-to-right
 const nodes = layoutDiagram(
-  homeDiagram.nodes.map((n) => ({
-    id: n.id,
-    position: { x: 0, y: 0 },
-    data: { label: n.label },
-    sourcePosition: Position.Right,
-    targetPosition: Position.Left,
-    style: {
-      background: `color-mix(in oklch, ${CATEGORY_COLORS[n.category]} 18%, transparent)`,
-      border: `1px solid color-mix(in oklch, ${CATEGORY_COLORS[n.category]} 55%, transparent)`,
-      color: "var(--foreground)",
-      borderRadius: "var(--radius)",
-      fontSize: 13,
-    },
-  })),
+  homeDiagram.nodes.map((n) => {
+    const { color } = getCategoryTheme(n.category);
+    return {
+      id: n.id,
+      position: { x: 0, y: 0 },
+      data: { label: n.label },
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
+      style: {
+        background: `color-mix(in oklch, ${color} 18%, transparent)`,
+        border: `1px solid color-mix(in oklch, ${color} 55%, transparent)`,
+        color: "var(--foreground)",
+        borderRadius: "var(--radius)",
+        fontSize: 13,
+      },
+    };
+  }),
   homeDiagram.edges,
   "LR"
 );
@@ -41,6 +37,7 @@ export default function HomeBackground() {
         <ReactFlow
           nodes={nodes}
           edges={homeDiagram.edges}
+          defaultEdgeOptions={defaultEdgeOptions}
           fitView
           nodesDraggable={false}
           nodesConnectable={false}
@@ -49,7 +46,7 @@ export default function HomeBackground() {
           zoomOnDoubleClick={false}
           proOptions={{ hideAttribution: true }}
         >
-          <Background variant={BackgroundVariant.Dots} gap={16} />
+          <Background variant={BackgroundVariant.Lines} {...gridProps} />
         </ReactFlow>
       </div>
     </ReactFlowProvider>
