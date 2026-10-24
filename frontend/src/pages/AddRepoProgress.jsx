@@ -61,9 +61,11 @@ export default function AddRepoProgress({ name, runAdd, onComplete, onAddDiffere
           </p>
           <div className="flex gap-2">
             <Button onClick={() => setAttempt((n) => n + 1)}>Try again</Button>
-            <Button variant="outline" onClick={onAddDifferent}>
-              Add a different repo
-            </Button>
+            {onAddDifferent && (
+              <Button variant="outline" onClick={onAddDifferent}>
+                Add a different repo
+              </Button>
+            )}
           </div>
         </div>
       ) : (

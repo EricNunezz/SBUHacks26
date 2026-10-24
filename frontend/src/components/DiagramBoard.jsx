@@ -19,7 +19,8 @@ import sampleRepo from "@/mock/sampleRepo.json"; // shown to guests, who have no
 import NodePanel from "@/components/NodePanel";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
-import { getRepoDiagram } from "@/api/client";
+import { addMyRepo, getRepoDiagram } from "@/api/client";
+import AddRepoProgress from "@/pages/AddRepoProgress.jsx";
 import { useChat } from "@/context/ChatContext";
 import { defaultEdgeOptions, gridProps } from "@/theme/flow";
 
@@ -29,9 +30,6 @@ const edgeTypes = { labeled: LabeledEdge };
 const PANEL_INSET = 416; // NodePanel: w-96 (384) + right-4 (16) + a 16px gap
 const FOCUS_ZOOM = { min: 0.6, max: 1.1 };
 
-const POLL_MS = 4000; // how often a pending repo is re-fetched
-const POLL_GIVE_UP_MS = 3 * 60 * 1000; // stop polling after this long
-const MAX_POLL_FAILURES = 3; // failed polls in a row before showing the error state
 
 function Centered({ children }) {
   return (
@@ -60,8 +58,6 @@ function Flow() {
   // `forId` records which repo the state belongs to, so a stale state is never shown for a new repo.
   const [fetched, setFetched] = useState({ forId: null, state: "loading", diagram: null });
   const [reloadKey, setReloadKey] = useState(0); // bump to re-fetch (Retry / Refresh)
-  const [pollKey, setPollKey] = useState(0); // bump to restart polling (Try again)
-  const [timedOut, setTimedOut] = useState(false); // polled for 3 minutes and it's still pending
   const [selectedNode, setSelectedNode] = useState(null);
   const { setViewport, fitView } = useReactFlow();
   const boardRef = useRef(null);
@@ -70,7 +66,6 @@ function Flow() {
   // load the diagram whenever the repo changes (logged-in users only)
   useEffect(() => {
     setSelectedNode(null);
-    setTimedOut(false);
     if (isGuest) return;
     let cancelled = false;
     setFetched({ forId: repoId, state: "loading", diagram: null });
@@ -86,66 +81,6 @@ function Flow() {
     };
   }, [repoId, isGuest, reloadKey]);
 
-  // Poll while this repo is pending (never for guests or ready repos).
-  // `pending` is a boolean, so the effect only restarts when polling should start or stop,
-  // not each time a poll returns another "pending" diagram.
-  const pending =
-    !isGuest && fetched.forId === repoId && fetched.state === "done" && fetched.diagram?.status === "pending";
-
-  useEffect(() => {
-    if (!pending) return;
-    const startedAt = Date.now();
-    let timer = null; // the one and only timer for this effect run
-    let inFlight = false; // a request is running; its result schedules the next tick
-    let failures = 0;
-    let stopped = false;
-
-    // Always clears the old timer first, so two timers can never be alive together
-    const schedule = (delay = POLL_MS) => {
-      clearTimeout(timer);
-      timer = setTimeout(poll, delay);
-    };
-
-    async function poll() {
-      if (stopped || document.visibilityState === "hidden") return; // resumes on visibilitychange
-      if (Date.now() - startedAt >= POLL_GIVE_UP_MS) {
-        setTimedOut(true);
-        return;
-      }
-      inFlight = true;
-      try {
-        const next = await getRepoDiagram(repoId);
-        if (stopped) return;
-        failures = 0;
-        setFetched({ forId: repoId, state: "done", diagram: next });
-        if (next.status === "pending") schedule(); // ready -> `pending` flips and cleanup runs
-      } catch {
-        if (stopped) return;
-        if (++failures >= MAX_POLL_FAILURES) {
-          setFetched({ forId: repoId, state: "error", diagram: null });
-        } else {
-          schedule(); // keep the pending screen and try again next tick
-        }
-      } finally {
-        inFlight = false;
-      }
-    }
-
-    // Pause while the tab is hidden, check again soon after it's visible
-    function onVisibility() {
-      if (document.visibilityState === "hidden") clearTimeout(timer);
-      else if (!inFlight) schedule(500);
-    }
-
-    document.addEventListener("visibilitychange", onVisibility);
-    schedule();
-    return () => {
-      stopped = true; // repo switch, ready, unmount, logout: ignore anything still in flight
-      clearTimeout(timer);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [pending, repoId, pollKey]);
-
   // guests see the mock; users see the fetched data. Only "ready" diagrams have nodes to draw.
   const diagram = isGuest ? sampleRepo : fetched.diagram;
   const ready = isGuest || (fetched.state === "done" && diagram?.status === "ready");
@@ -159,8 +94,8 @@ function Flow() {
       position: { x: 0, y: 0 },
       data: node,
     }));
-    const { nodes: laidOut, labelY } = layoutGraph(rfNodes, diagram.edges);
-    const rfEdges = diagram.edges.map((e) => ({ ...e, type: "labeled", data: { labelY: labelY[e.id] } }));
+    const { nodes: laidOut } = layoutGraph(rfNodes, diagram.edges);
+    const rfEdges = diagram.edges.map((e) => ({ ...e, type: "labeled" }));
     return { nodes: laidOut, edges: rfEdges };
   }, [ready, diagram]);
 
@@ -255,29 +190,14 @@ function Flow() {
       );
     }
     if (diagram.status === "pending") {
+      // Nothing is generating this repo (e.g. its diagram was cleared), so start it here
       return (
-        <Centered>
-          {timedOut ? (
-            <>
-              <p>This is taking longer than usual</p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setTimedOut(false);
-                  setPollKey((k) => k + 1); // restarts the polling effect
-                }}
-              >
-                Try again
-              </Button>
-            </>
-          ) : (
-            <>
-              <SpinnerMessage>Mapping this repo... this can take up to a minute</SpinnerMessage>
-              <p className="text-xs">This page updates automatically</p>
-            </>
-          )}
-        </Centered>
+        <AddRepoProgress
+          key={`${repoId}-${reloadKey}`}
+          name={`${diagram.owner}/${diagram.name}`}
+          runAdd={() => addMyRepo(diagram.url)}
+          onComplete={() => setReloadKey((k) => k + 1)}
+        />
       );
     }
   }

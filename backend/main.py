@@ -82,9 +82,9 @@ async def add_my_repo(body: AddRepoBody, user_id: str = Depends(get_current_user
         diagram = {"nodes": analyzed_data["nodes"], "edges": analyzed_data["edges"]}
 
         if repo:
-            repo = await asyncio.to_thread(db.update_repo_diagram, repo["id"], analyzed_data["summary"], diagram, {})
+            repo = await asyncio.to_thread(db.update_repo_diagram, repo["id"], analyzed_data["summary"], diagram, analyzed_data["github_context"])
         else:
-            repo = await asyncio.to_thread(db.save_repo, owner, name, url, analyzed_data["summary"], diagram, {})
+            repo = await asyncio.to_thread(db.save_repo, owner, name, url, analyzed_data["summary"], diagram, analyzed_data["github_context"])
 
     await asyncio.to_thread(db.link_repo_to_user, user_id, repo["id"])
     return repo
