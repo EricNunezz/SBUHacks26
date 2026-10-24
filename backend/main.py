@@ -10,8 +10,8 @@ from pydantic import BaseModel
 # Read variables from backend/.env into os.environ
 load_dotenv()
 
-# Imported after load_dotenv so db.py can read the Supabase env vars
 import db  # noqa: E402
+from repo_analyzer import analyze_repo_with_gemini  # <--- Imported from our new file
 
 app = FastAPI(title="Repo Architecture Diagram API")
 
@@ -55,8 +55,7 @@ class AddRepoBody(BaseModel):
     url: str
 
 
-# https://github.com/owner/repo (optional .git or trailing slash)
-GITHUB_URL = re.compile(r"^https://github\.com/([\w.-]+)/([\w.-]+?)(?:\.git)?/?$")
+GITHUB_URL_REGEX = re.compile(r"^https://github\.com/([\w.-]+)/([\w.-]+?)(?:\.git)?/?$")
 
 
 @app.get("/api/me/repos")
@@ -65,17 +64,29 @@ def get_my_repos(user_id: str = Depends(get_current_user_id)):
 
 
 @app.post("/api/me/repos")
-def add_my_repo(body: AddRepoBody, user_id: str = Depends(get_current_user_id)):
-    match = GITHUB_URL.match(body.url.strip())
+async def add_my_repo(body: AddRepoBody, user_id: str = Depends(get_current_user_id)):
+    match = GITHUB_URL_REGEX.match(body.url.strip())
     if not match:
         raise HTTPException(status_code=400, detail="Expected a URL like https://github.com/owner/repo")
+    
     owner, name = match.groups()
-    url = f"https://github.com/{owner}/{name}"  # canonical form, so lookups match
+    url = f"https://github.com/{owner}/{name}"
 
+    # Check if the repo is already analyzed and cached in your DB
     repo = db.get_repo_by_url(url)
+    
     if not repo:
-        # TODO: generate the real summary and diagram here (GitHub + Gemini) instead of a placeholder
-        repo = db.save_repo(owner, name, url, None, None, {})
+        # Calls the function from our new repo_analyzer.py file
+        analyzed_data = await analyze_repo_with_gemini(owner, name, url)
+        
+        repo = db.save_repo(
+            owner=owner, 
+            name=name, 
+            url=url, 
+            summary=analyzed_data.get("summary"), 
+            nodes=analyzed_data.get("nodes"), 
+            edges=analyzed_data.get("edges")
+        )
 
     db.link_repo_to_user(user_id, repo["id"])
     return repo
@@ -104,6 +115,5 @@ def get_repo_diagram(repo_id: UUID, user_id: str = Depends(get_current_user_id))
 
 @app.delete("/api/me/repos/{repo_id}", status_code=204)
 def remove_my_repo(repo_id: str, user_id: str = Depends(get_current_user_id)):
-    # Unlink only: the repo stays in the shared cache for other users
     db.unlink_repo_from_user(user_id, repo_id)
     return Response(status_code=204)
