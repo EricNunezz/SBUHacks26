@@ -85,10 +85,41 @@ async def fetch_github_file_tree(owner: str, repo: str) -> List[str]:
     except httpx.HTTPError:
         raise HTTPException(status_code=502, detail="Could not reach GitHub. Try again.")
 
-    return [
-        item["path"] for item in tree_res.json().get("tree", [])
-        if item["type"] == "blob" and not item["path"].startswith((".git/", "node_modules/", "venv/", "dist/"))
-    ]
+    paths = [item["path"] for item in tree_res.json().get("tree", []) if item["type"] == "blob"]
+    return filter_paths(paths)
+
+
+# Folders (at any depth) that never describe the app's own architecture
+SKIP_DIRS = {
+    ".git", ".changeset", ".github", "docs", "node_modules", "venv", ".venv", "__pycache__", "site-packages",
+    "dist", "build", ".next", "coverage", "bower_components", "Pods",
+    "vendor", "vendored", "third_party", "third-party", "extern",
+    "generated", "__generated__", "gen",
+    "fixtures", "__fixtures__", "__snapshots__", "__mocks__", "testdata", "test_data",
+}
+SKIP_FILES = {"package-lock.json", "pnpm-lock.yaml"}
+
+
+def filter_paths(paths: List[str]) -> List[str]:
+    """Drops noise (changelogs, docs, lockfiles, generated or vendored code) before the tree goes to Gemini."""
+    has_src = any({"src", "lib"} & set(p.split("/")[:-1]) for p in paths)
+    kept = []
+    for path in paths:
+        *dirs, name = path.split("/")
+        upper = name.upper()
+        if SKIP_DIRS & set(dirs) or (has_src and "examples" in dirs):
+            continue
+        if name in SKIP_FILES or upper.startswith("CHANGELOG") or name.endswith((".lock", ".snap")):
+            continue
+        if upper.endswith((".MD", ".MDX")) and not (not dirs and upper.startswith("README")):
+            continue
+        kept.append(path)
+    return kept
+
+
+def trim_words(text: str, limit: int = 5) -> str:
+    words = str(text).split()
+    return " ".join(words[:limit])
 
 
 def slug(value: str, fallback: str) -> str:
@@ -104,12 +135,12 @@ def unique(value: str, taken: set) -> str:
 
 
 def clean_diagram(data: dict) -> dict:
-    """Makes ids slug-safe and unique and drops edges that point at missing nodes."""
+    """Makes ids slug-safe and unique, trims long labels, and drops edges that point at missing nodes."""
     node_ids, id_map, nodes = set(), {}, []
     for n in data["nodes"]:
         new_id = unique(slug(n["id"], "node"), node_ids)
         id_map.setdefault(n["id"], new_id)  # edges that use a duplicated id point at the first one
-        nodes.append({**n, "id": new_id})
+        nodes.append({**n, "id": new_id, "label": trim_words(n["label"])})
     if not nodes:
         raise HTTPException(status_code=502, detail="Gemini returned an empty diagram. Try again.")
 
@@ -119,7 +150,7 @@ def clean_diagram(data: dict) -> dict:
         if not source or not target:
             continue
         edge_id = unique(slug(e["id"], f"{source}-{target}"), edge_ids)
-        edges.append({**e, "id": edge_id, "source": source, "target": target})
+        edges.append({**e, "id": edge_id, "source": source, "target": target, "label": trim_words(e["label"])})
     return {"summary": data["summary"], "nodes": nodes, "edges": edges}
 
 
@@ -140,6 +171,11 @@ async def analyze_repo_with_gemini(owner: str, repo_name: str, repo_url: str) ->
     - Overall summary of the project.
     - Nodes representing distinct structural blocks (frontend, backend, database, config, etc.) mapping to their respective files and key points.
     - Edges representing how these nodes connect.
+
+    Rules:
+    - Each node's "files" must be its most important SOURCE files: code a beginner would actually read to understand that part. At most 8 files per node. Never list release notes, changelogs, lockfiles, or docs.
+    - Node labels are 2 to 4 words.
+    - Edge labels are 2 to 4 words and a verb phrase, like "calls", "reads from", or "sends events to".
     """
 
     config = types.GenerateContentConfig(

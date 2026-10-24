@@ -19,16 +19,18 @@ export default function AppSidebar({ repos, selectedRepoId, onOpenAddRepo, onDel
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        {/* App mark */}
-        <div className="flex items-center px-2 pt-1 group-data-[collapsible=icon]:justify-center">
-          <Cog className="size-6 text-copper" aria-label="App logo" />
+        {/* App mark sits beside the switcher; hidden in the collapsed icon strip */}
+        <div className="flex items-center gap-1">
+          <Cog className="ml-1 size-6 shrink-0 text-copper group-data-[collapsible=icon]:hidden" aria-label="App logo" />
+          <div className="min-w-0 flex-1">
+            <RepoSwitcher
+              repos={repos}
+              selectedRepoId={selectedRepoId}
+              onOpenAddRepo={onOpenAddRepo}
+              onDeleteRepo={onDeleteRepo}
+            />
+          </div>
         </div>
-        <RepoSwitcher
-          repos={repos}
-          selectedRepoId={selectedRepoId}
-          onOpenAddRepo={onOpenAddRepo}
-          onDeleteRepo={onDeleteRepo}
-        />
       </SidebarHeader>
       <SidebarContent>
         <NavRepo

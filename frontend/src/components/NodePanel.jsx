@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronRight, MessageSquare } from "lucide-react";
+import { ChevronRight, ExternalLink, MessageSquare } from "lucide-react";
 import { useChat } from "@/context/ChatContext";
 
-export default function NodePanel({ node, nodes, edges, onClose }) {
+// repoUrl is the repo's GitHub url (https://github.com/owner/repo)
+export default function NodePanel({ node, nodes, edges, repoUrl, onClose }) {
   const { label, summary, key_points = [], files = [] } = node.data;
-  const { open: openChat } = useChat();
+  const { open: openChat, askAbout } = useChat();
+  const asNode = { id: node.id, label, category: node.data.category };
 
   // Collapse + drag state
   const [collapsed, setCollapsed] = useState(false);
@@ -124,7 +126,7 @@ export default function NodePanel({ node, nodes, edges, onClose }) {
       {!collapsed && (
         <div className="overflow-y-auto p-5">
           <button
-            onClick={() => openChat({ id: node.id, label, category: node.data.category })}
+            onClick={() => openChat(asNode)}
             className="mb-5 flex items-center gap-2 rounded-md border border-[var(--copper)] px-3 py-1.5 text-sm text-[var(--copper-deep)] hover:bg-[var(--copper)]/10"
           >
             <MessageSquare className="size-4" />
@@ -160,10 +162,40 @@ export default function NodePanel({ node, nodes, edges, onClose }) {
 
           {files.length > 0 && (
             <Section title="Main files">
-              <ul className="space-y-1 font-mono text-xs">
-                {files.map((file) => (
-                  <li key={file} className="rounded bg-muted px-2 py-1">{file}</li>
-                ))}
+              <ul className="font-mono text-xs">
+                {files.map((file) => {
+                  const slash = file.lastIndexOf("/");
+                  return (
+                    <li key={file} className="group flex items-center gap-1 rounded bg-muted px-2 py-1 mb-1">
+                      <div className="min-w-0 flex-1" title={file}>
+                        <div className="break-all font-medium">{file.slice(slash + 1)}</div>
+                        {slash > 0 && <div className="break-all text-[10px] text-muted-foreground">{file.slice(0, slash)}</div>}
+                      </div>
+                      <div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                        {repoUrl && (
+                          <a
+                            href={`${repoUrl}/blob/HEAD/${file.split("/").map(encodeURIComponent).join("/")}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            title="Open on GitHub"
+                            aria-label={`Open ${file} on GitHub`}
+                            className="rounded p-1 hover:bg-background"
+                          >
+                            <ExternalLink className="size-3.5" />
+                          </a>
+                        )}
+                        <button
+                          title="Ask about this file"
+                          aria-label={`Ask about ${file}`}
+                          onClick={() => askAbout(`What does ${file} do, and how does it fit into ${label}?`, asNode)}
+                          className="rounded p-1 hover:bg-background"
+                        >
+                          <MessageSquare className="size-3.5" />
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             </Section>
           )}

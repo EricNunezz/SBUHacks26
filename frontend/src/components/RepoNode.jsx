@@ -9,12 +9,8 @@ export default function RepoNode({ data, selected }) {
 
   return (
     <div
-      style={{
-        width: NODE_WIDTH,
-        height: NODE_HEIGHT,
-        borderLeftColor: theme.color,
-      }}
-      className={`flex items-center gap-3 rounded-md border border-l-4 bg-card px-3 shadow-sm transition-shadow hover:shadow-md ${
+      style={{ width: NODE_WIDTH, height: NODE_HEIGHT, borderLeftColor: theme.color }}
+      className={`rounded-md border border-l-4 bg-card shadow-sm transition-shadow hover:shadow-md ${
         selected ? "ring-2 ring-primary" : ""
       }`}
     >
@@ -25,15 +21,17 @@ export default function RepoNode({ data, selected }) {
         className="!border-0 !bg-transparent"
       />
 
-      <Icon className="h-5 w-5 shrink-0" style={{ color: theme.color }} />
+      <div className="flex h-full items-center gap-3 px-3">
+        <Icon className="h-5 w-5 shrink-0" style={{ color: theme.color }} />
 
-      <div className="min-w-0">
-        <div className="truncate text-sm font-medium">{data.label}</div>
-        <div
-          className="font-mono text-[10px] uppercase tracking-wider"
-          style={{ color: theme.color }}
-        >
-          {data.category}
+        <div className="min-w-0">
+          <div title={data.label} className="line-clamp-2 break-words text-sm font-medium leading-tight">{data.label}</div>
+          <div
+            className="font-mono text-[10px] uppercase tracking-wider"
+            style={{ color: theme.color }}
+          >
+            {data.category}
+          </div>
         </div>
       </div>
 

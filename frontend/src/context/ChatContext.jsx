@@ -30,8 +30,8 @@ export function ChatProvider({ children }) {
     setIsCollapsed(false);
     setAttachedNode(node);
   }, []);
-  const askAbout = useCallback((text) => {
-    open();
+  const askAbout = useCallback((text, node = null) => {
+    open(node);
     setPrefill({ text });
   }, [open]);
   const close = useCallback(() => setIsOpen(false), []);
