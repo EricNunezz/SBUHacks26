@@ -1,15 +1,11 @@
 import { Handle, Position } from "@xyflow/react";
-import { Gauge, Cog, Cylinder, Wrench, Plug, Factory } from "lucide-react";
 import { NODE_WIDTH, NODE_HEIGHT } from "@/utils/layout";
 import { getCategoryTheme } from "@/theme/categories";
-
-// categories.js stores icon NAMES, so map names to the actual components.
-// Importing only these six keeps the bundle small.
-const ICONS = { Gauge, Cog, Cylinder, Wrench, Plug, Factory };
+import { getThemeIcon } from "@/theme/icons";
 
 export default function RepoNode({ data, selected }) {
   const theme = getCategoryTheme(data.category);
-  const Icon = ICONS[theme.icon] ?? Wrench;
+  const Icon = getThemeIcon(theme);
 
   return (
     <div

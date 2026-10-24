@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, MessageSquare } from "lucide-react";
+import { useChat } from "@/context/ChatContext";
 
 export default function NodePanel({ node, nodes, edges, onClose }) {
   const { label, summary, key_points = [], files = [] } = node.data;
+  const { open: openChat } = useChat();
 
   // Collapse + drag state
   const [collapsed, setCollapsed] = useState(false);
@@ -121,6 +123,14 @@ export default function NodePanel({ node, nodes, edges, onClose }) {
       {/* Body: hidden when collapsed */}
       {!collapsed && (
         <div className="overflow-y-auto p-5">
+          <button
+            onClick={() => openChat({ id: node.id, label, category: node.data.category })}
+            className="mb-5 flex items-center gap-2 rounded-md border border-[var(--copper)] px-3 py-1.5 text-sm text-[var(--copper-deep)] hover:bg-[var(--copper)]/10"
+          >
+            <MessageSquare className="size-4" />
+            Ask about this
+          </button>
+
           <Section title="In plain English">
             <p className="text-sm leading-relaxed">{summary}</p>
           </Section>
