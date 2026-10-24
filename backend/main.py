@@ -1,4 +1,5 @@
 """FastAPI entry point. Run with: uvicorn main:app --reload --port 8000"""
+import asyncio
 import re
 from uuid import UUID
 
@@ -73,22 +74,19 @@ async def add_my_repo(body: AddRepoBody, user_id: str = Depends(get_current_user
     url = f"https://github.com/{owner}/{name}"
 
     # Check if the repo is already analyzed and cached in your DB
-    repo = db.get_repo_by_url(url)
-    
-    if not repo:
-        # Calls the function from our new repo_analyzer.py file
-        analyzed_data = await analyze_repo_with_gemini(owner, name, url)
-        
-        repo = db.save_repo(
-            owner=owner, 
-            name=name, 
-            url=url, 
-            summary=analyzed_data.get("summary"), 
-            nodes=analyzed_data.get("nodes"), 
-            edges=analyzed_data.get("edges")
-        )
+    repo = await asyncio.to_thread(db.get_repo_by_url, url)
 
-    db.link_repo_to_user(user_id, repo["id"])
+    # Placeholder rows (diagram is null) get generated here too
+    if not repo or not repo.get("diagram"):
+        analyzed_data = await analyze_repo_with_gemini(owner, name, url)
+        diagram = {"nodes": analyzed_data["nodes"], "edges": analyzed_data["edges"]}
+
+        if repo:
+            repo = await asyncio.to_thread(db.update_repo_diagram, repo["id"], analyzed_data["summary"], diagram, {})
+        else:
+            repo = await asyncio.to_thread(db.save_repo, owner, name, url, analyzed_data["summary"], diagram, {})
+
+    await asyncio.to_thread(db.link_repo_to_user, user_id, repo["id"])
     return repo
 
 

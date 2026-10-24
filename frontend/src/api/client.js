@@ -66,12 +66,12 @@ export async function deleteMyRepo(repoId) {
 }
 
 // Ask the AI about a repo. Only the last 10 messages are sent as history.
-// POST /api/repos/{repoId}/chat  { message, nodeId, history }  ->  { content }
+// POST /api/repos/{repoId}/chat  { message, node_id, history }  ->  { content }
 // TODO: replace this mock with the real endpoint. `mockNodeIds` exists only so the
 // mock can cite real diagram ids; drop it (and the mock) when the backend is wired in.
 export async function sendChatMessage(repoId, { message, nodeId, history = [] }, mockNodeIds = []) {
   const recent = history.slice(-10); // what the real request will send
-  console.debug("chat request (mock)", repoId, { message, nodeId, history: recent });
+  console.debug("chat request (mock)", repoId, { message, node_id: nodeId, history: recent });
 
   await new Promise((resolve) => setTimeout(resolve, 1000));
 
