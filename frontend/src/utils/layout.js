@@ -4,11 +4,11 @@ import dagre from "@dagrejs/dagre";
 export const NODE_WIDTH = 200;
 export const NODE_HEIGHT = 70;
 
-export function layoutDiagram(nodes, edges){
+export function layoutDiagram(nodes, edges, direction = "TB"){
   //make the empty graph and set the direction (Top -> bottom) & spacing between nodes 
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: "TB", nodesep: 60, ranksep: 90});
+  g.setGraph({ rankdir: direction, nodesep: 60, ranksep: 90});
 
   //tell dagre about every box and its size
   nodes.forEach((node) => {

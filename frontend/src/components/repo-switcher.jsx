@@ -1,6 +1,17 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronsUpDown, GitBranch, Plus } from "lucide-react";
+import { ChevronsUpDown, GitBranch, MoreVertical, Plus, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,7 +26,6 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import AddRepoDialog from "@/components/add-repo-dialog";
 
 // "owner/repo" -> { owner, name }
 function splitName(fullName) {
@@ -24,10 +34,10 @@ function splitName(fullName) {
 }
 
 // Replaces sidebar-07's team switcher: pick a repo or add a new one.
-export default function RepoSwitcher({ repos, selectedRepoId, onAddRepo }) {
+export default function RepoSwitcher({ repos, selectedRepoId, onOpenAddRepo, onDeleteRepo }) {
   const { isMobile } = useSidebar();
   const navigate = useNavigate();
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [repoToDelete, setRepoToDelete] = useState(null); // repo awaiting confirmation
 
   const selected = repos.find((r) => r.id === selectedRepoId);
   const info = selected ? splitName(selected.name) : null;
@@ -58,20 +68,50 @@ export default function RepoSwitcher({ repos, selectedRepoId, onAddRepo }) {
             sideOffset={4}
           >
             <DropdownMenuLabel className="text-xs text-muted-foreground">Repos</DropdownMenuLabel>
+            {repos.length === 0 && (
+              <DropdownMenuItem disabled>No repos yet</DropdownMenuItem>
+            )}
             {repos.map((repo) => {
               const { owner, name } = splitName(repo.name);
               return (
-                <DropdownMenuItem key={repo.id} onSelect={() => navigate(`/repo/${repo.id}`)}>
-                  <GitBranch className="size-4" />
-                  <div className="grid leading-tight">
-                    <span className="text-sm">{name}</span>
-                    <span className="text-xs text-muted-foreground">{owner}</span>
-                  </div>
-                </DropdownMenuItem>
+                <div key={repo.id} className="group flex items-center gap-1">
+                  <DropdownMenuItem
+                    className="flex-1"
+                    onSelect={() => navigate(`/repo/${repo.id}`)}
+                  >
+                    <GitBranch className="size-4" />
+                    <div className="grid leading-tight">
+                      <span className="text-sm">{name}</span>
+                      <span className="text-xs text-muted-foreground">{owner}</span>
+                    </div>
+                  </DropdownMenuItem>
+
+                  {/* Sibling of the row (not inside it), so clicks here never select the repo */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        aria-label={`Options for ${repo.name}`}
+                        className="text-muted-foreground opacity-40 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+                        onClick={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => e.stopPropagation()}
+                      >
+                        <MoreVertical />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" side="right">
+                      <DropdownMenuItem variant="destructive" onSelect={() => setRepoToDelete(repo)}>
+                        <Trash2 className="size-4" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               );
             })}
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => setDialogOpen(true)}>
+            <DropdownMenuItem onSelect={onOpenAddRepo}>
               <Plus className="size-4" />
               Add repo
             </DropdownMenuItem>
@@ -79,8 +119,29 @@ export default function RepoSwitcher({ repos, selectedRepoId, onAddRepo }) {
         </DropdownMenu>
       </SidebarMenuItem>
 
-      {/* Rendered outside the dropdown so it stays open after the menu closes */}
-      <AddRepoDialog open={dialogOpen} onOpenChange={setDialogOpen} onAddRepo={onAddRepo} />
+      {/* Delete confirmation, outside the dropdown so it stays open after the menu closes */}
+      <AlertDialog
+        open={Boolean(repoToDelete)}
+        onOpenChange={(open) => !open && setRepoToDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove {repoToDelete?.name} from your repos?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This only removes it from your list. You can add it again later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={() => onDeleteRepo(repoToDelete.id)}
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SidebarMenu>
   );
 }
