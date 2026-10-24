@@ -17,6 +17,8 @@ import "@xyflow/react/dist/style.css";
 import { layoutGraph, NODE_WIDTH, NODE_HEIGHT } from "@/utils/layout";
 import sampleRepo from "@/mock/sampleRepo.json"; // shown to guests, who have no backend ids
 import NodePanel from "@/components/NodePanel";
+import CodeViewer from "@/components/CodeViewer";
+import { useSidebar } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { addMyRepo, getRepoDiagram } from "@/api/client";
@@ -61,11 +63,13 @@ function Flow() {
   const [selectedNode, setSelectedNode] = useState(null);
   const { setViewport, fitView } = useReactFlow();
   const boardRef = useRef(null);
-  const { isOpen: chatOpen, isCollapsed: chatCollapsed, setDiagram } = useChat();
+  const { askAbout, setDiagram } = useChat();
+  const [viewing, setViewing] = useState(null); // { file, node } open in the code panel
 
   // load the diagram whenever the repo changes (logged-in users only)
   useEffect(() => {
     setSelectedNode(null);
+    setViewing(null);
     if (isGuest) return;
     let cancelled = false;
     setFetched({ forId: repoId, state: "loading", diagram: null });
@@ -137,26 +141,55 @@ function Flow() {
     return () => setDiagram(null);
   }, [nodes, focusNode, setDiagram]);
 
-  // The chat docks beside the board, so the board changes width. Once the panel's width
-  // transition (300ms) ends, re-center on the open node or fit everything.
+  // The board changes width when the chat is resized / collapsed or the sidebar toggles. Once the size settles,
+  // re-center on the open node or fit everything. (The floating panels re-clamp themselves, see useFloatingPanel.)
   const selectedRef = useRef(null);
   selectedRef.current = selectedNode;
-  const firstRun = useRef(true);
   useEffect(() => {
-    if (firstRun.current) {
-      firstRun.current = false;
-      return;
-    }
-    const timer = setTimeout(() => {
-      const sel = selectedRef.current;
-      if (sel) {
-        flyTo(sel, 300);
-      } else {
-        fitView({ duration: 300 });
+    const el = boardRef.current;
+    if (!el) return;
+    let timer;
+    let first = true; // observing fires once straight away
+    const observer = new ResizeObserver(() => {
+      if (first) {
+        first = false;
+        return;
       }
-    }, 320);
-    return () => clearTimeout(timer);
-  }, [chatOpen, chatCollapsed, flyTo, fitView]);
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const sel = selectedRef.current;
+        if (sel) flyTo(sel, 300);
+        else fitView({ duration: 300 });
+      }, 150);
+    });
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      clearTimeout(timer);
+    };
+  }, [ready, flyTo, fitView]);
+
+  // Collapse the left sidebar while the code panel is open, then put it back the way the user had it
+  const { open: sidebarOpen, setOpen: setSidebarOpen, isMobile } = useSidebar();
+  const sidebarOpenRef = useRef(sidebarOpen);
+  sidebarOpenRef.current = sidebarOpen;
+  const collapsedByViewer = useRef(false);
+  useEffect(() => {
+    if (isMobile) return;
+    if (viewing && !collapsedByViewer.current && sidebarOpenRef.current) {
+      collapsedByViewer.current = true;
+      setSidebarOpen(false);
+    } else if (!viewing && collapsedByViewer.current) {
+      collapsedByViewer.current = false;
+      setSidebarOpen(true);
+    }
+  }, [Boolean(viewing), isMobile]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(
+    () => () => {
+      if (collapsedByViewer.current) setSidebarOpen(true); // leaving the board (e.g. to Stats) restores it too
+    },
+    [], // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   //nested function to handle clicking a node
   function handleNodeClick(event, node) {
@@ -228,7 +261,25 @@ function Flow() {
           nodes={nodes}
           edges={edges}
           repoUrl={diagram.url}
+          onViewFile={(file) =>
+            setViewing({
+              file,
+              node: { id: selectedNode.id, label: selectedNode.data.label, category: selectedNode.data.category },
+            })
+          }
           onClose={handleClose}
+        />
+      )}
+      {viewing && (
+        <CodeViewer
+          file={viewing.file}
+          node={viewing.node}
+          repoId={repoId}
+          repoUrl={diagram.url}
+          onClose={() => setViewing(null)}
+          onAsk={(file) =>
+            askAbout(`What does ${file.slice(file.lastIndexOf("/") + 1)} do?`, viewing.node, file)
+          }
         />
       )}
     </div>

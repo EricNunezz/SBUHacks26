@@ -4,7 +4,6 @@ import { useAuth } from "@/context/AuthContext";
 import { getRepoStats, getRepoDiagram } from "@/api/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { useChat } from "@/context/ChatContext";
 import { getCategoryTheme } from "@/theme/categories";
 import { getThemeIcon } from "@/theme/icons";
 import * as T from "@/lib/statsReadings";
@@ -59,8 +58,7 @@ function ReportHeader({ owner, name, stats }) {
   );
 }
 
-function SectionCard({ label, verdict, tone, why, reading, question, prominent, className = "", children }) {
-  const { askAbout } = useChat();
+function SectionCard({ label, verdict, tone, why, reading, prominent, className = "", children }) {
   return (
     <section
       className={`space-y-3 ${prominent ? "p-6" : "p-5"} ${className}`}
@@ -68,12 +66,7 @@ function SectionCard({ label, verdict, tone, why, reading, question, prominent, 
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="font-mono text-[11px] uppercase tracking-widest" style={{ color: MUTED }}>{label}</div>
-        <div className="flex gap-3">
-          {reading && <HowWeReadThis>{reading}</HowWeReadThis>}
-          <button type="button" onClick={() => askAbout(question)} className="font-mono text-[11px] underline underline-offset-2" style={{ color: "#B87333" }}>
-            Ask the engineer
-          </button>
-        </div>
+        {reading && <HowWeReadThis>{reading}</HowWeReadThis>}
       </div>
       {verdict ? (
         <>
@@ -122,7 +115,7 @@ function Report({ stats, diagram }) {
   return (
     <>
       <SectionCard
-        label="01 / VITAL SIGNS" question="Is this project still active?"
+        label="01 / VITAL SIGNS"
         verdict={vital?.verdict} tone={vital?.tone} why={vital?.reasons.join(" · ")}
         reading={vital && (
           <>
@@ -146,7 +139,7 @@ function Report({ stats, diagram }) {
       </SectionCard>
 
       <SectionCard
-        label="02 / NEWCOMER FRIENDLINESS" question="Is this repo friendly to beginners?"
+        label="02 / NEWCOMER FRIENDLINESS"
         verdict={friendly?.verdict} tone={friendly?.tone}
         why={friendly?.reasons.join(" · ")}
         reading={friendly && (
@@ -163,7 +156,7 @@ function Report({ stats, diagram }) {
 
       <SectionCard
         prominent className="md:col-span-2"
-        label="03 / WHERE YOU CAN HELP" question="How would I make my first contribution here?"
+        label="03 / WHERE YOU CAN HELP"
         verdict={issues ? (gfi > 0 ? `${gfi} FOR BEGINNERS` : "NONE TAGGED") : null}
         tone={gfi > 0 ? "good" : "mid"}
         reading={<p>Open issues labeled "good first issue" (newest 5 shown) and "help wanted" on GitHub.</p>}
@@ -190,7 +183,7 @@ function Report({ stats, diagram }) {
       </SectionCard>
 
       <SectionCard
-        label="04 / SIZE & MATERIALS" question="How is this codebase organized?"
+        label="04 / SIZE & MATERIALS"
         verdict={mats ? formatBytes(mats.total) : null}
         reading={<p>Language share is by bytes of code, top {T.TOP_LANGUAGES} languages with the rest grouped as Other.</p>}
       >

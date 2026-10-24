@@ -1,5 +1,4 @@
 import { getAccessToken } from "@/context/AuthContext";
-import { supabase } from "@/lib/supabase";
 
 // Error with the HTTP status attached, so callers can check for 401 etc.
 export class ApiError extends Error {
@@ -66,37 +65,26 @@ export async function deleteMyRepo(repoId) {
   await request(`/api/me/repos/${repoId}`, { method: "DELETE" });
 }
 
+// One file's code for the viewer: { path, language, content, truncated, line_count }
+export async function getRepoFile(repoId, path) {
+  return request(`/api/repos/${repoId}/file?path=${encodeURIComponent(path)}`);
+}
+
 // Ask the AI about a repo. Only the last 10 messages are sent as history.
-// POST /api/repos/{repoId}/chat  { message, node_id, history }  ->  { content }
-// TODO: replace this mock with the real endpoint. `mockNodeIds` exists only so the
-// mock can cite real diagram ids; drop it (and the mock) when the backend is wired in.
-export async function sendChatMessage(repoId, { message, nodeId, history = [] }) {
-  // 1. Get the current active user session token from Supabase
-  const { data: { session } } = await supabase.auth.getSession();
-  const token = session?.access_token;
-
-  // 2. Make the HTTP POST request to your FastAPI backend chat endpoint
-  const response = await fetch(`http://localhost:8000/api/repos/${repoId}/chat`, {
+// POST /api/repos/{repoId}/chat  { message, node_id, file_path, history }  ->  { content }
+export async function sendChatMessage(repoId, { message, nodeId, filePath = null, history = [] }) {
+  return request(`/api/repos/${repoId}/chat`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { "Authorization": `Bearer ${token}` } : {})
-    },
     body: JSON.stringify({
-      message: message,
+      message,
       node_id: nodeId,
-      history: history.map(h => ({
-        role: h.role === "user" ? "user" : "ai",
-        content: h.content
-      }))
-    })
+      file_path: filePath,
+      history: history.slice(-10).map(({ role, content }) => ({ role, content })),
+    }),
   });
+}
 
-  if (!response.ok) {
-    const errData = await response.json().catch(() => ({}));
-    throw new Error(errData.detail || "Failed to get response from AI assistant.");
-  }
-
-  // 3. Returns the JSON containing the real Gemini reply: { content: "..." }
-  return await response.json();
+// The repo's saved thread (all nodes), oldest first: [{ id, role, content, node_id, created_at }]
+export async function getChatHistory(repoId) {
+  return request(`/api/repos/${repoId}/chat`);
 }

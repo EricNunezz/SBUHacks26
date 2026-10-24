@@ -1,86 +1,23 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronRight, ExternalLink, MessageSquare } from "lucide-react";
+import { useState } from "react";
+import { ChevronRight, Code, ExternalLink, MessageSquare, MoreHorizontal } from "lucide-react";
 import { useChat } from "@/context/ChatContext";
+import useFloatingPanel from "@/hooks/useFloatingPanel";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { githubFileUrl } from "@/utils/github";
 
 // repoUrl is the repo's GitHub url (https://github.com/owner/repo)
-export default function NodePanel({ node, nodes, edges, repoUrl, onClose }) {
+export default function NodePanel({ node, nodes, edges, repoUrl, onViewFile, onClose }) {
   const { label, summary, key_points = [], files = [] } = node.data;
   const { open: openChat, askAbout } = useChat();
   const asNode = { id: node.id, label, category: node.data.category };
 
-  // Collapse + drag state
   const [collapsed, setCollapsed] = useState(false);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const dragStart = useRef(null);
-  const panelRef = useRef(null);
-  const offsetRef = useRef(offset); // offset currently applied to the DOM
-
-  // Keep the panel fully inside its parent by limiting the offset
-  const clampOffset = useCallback((next) => {
-    const panel = panelRef.current;
-    const parent = panel?.parentElement;
-    if (!panel || !parent) return next;
-    const p = panel.getBoundingClientRect();
-    const b = parent.getBoundingClientRect();
-    const cur = offsetRef.current;
-    // How far the panel can still move in each direction from where it is now
-    const minX = cur.x + (b.left - p.left);
-    const maxX = cur.x + (b.right - p.right);
-    const minY = cur.y + (b.top - p.top);
-    const maxY = cur.y + (b.bottom - p.bottom);
-    // If the panel is bigger than the board, min > max: favor top-left
-    return {
-      x: Math.max(minX, Math.min(next.x, maxX)),
-      y: Math.max(minY, Math.min(next.y, maxY)),
-    };
-  }, []);
-
-  function applyOffset(next) {
-    const clamped = clampOffset(next);
-    if (clamped.x === offsetRef.current.x && clamped.y === offsetRef.current.y) return;
-    offsetRef.current = clamped;
-    setOffset(clamped);
-  }
-
-  // Re-clamp when the panel or board changes size (collapse/expand, window resize)
-  useEffect(() => {
-    const panel = panelRef.current;
-    const reclamp = () => applyOffset(offsetRef.current);
-    const ro = new ResizeObserver(reclamp);
-    ro.observe(panel);
-    ro.observe(panel.parentElement);
-    window.addEventListener("resize", reclamp);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", reclamp);
-    };
-  }, []);
-
-  // Mouse/finger goes down on the header: remember where we started
-  function startDrag(e) {
-    if (e.target.closest("button")) return; // clicking a button shouldn't drag
-    dragStart.current = {
-      mouseX: e.clientX,
-      mouseY: e.clientY,
-      startX: offset.x,
-      startY: offset.y,
-    };
-    e.currentTarget.setPointerCapture(e.pointerId);
-  }
-
-  // Moving: new offset = where we started + how far the mouse moved (clamped)
-  function onDrag(e) {
-    if (!dragStart.current) return;
-    applyOffset({
-      x: dragStart.current.startX + (e.clientX - dragStart.current.mouseX),
-      y: dragStart.current.startY + (e.clientY - dragStart.current.mouseY),
-    });
-  }
-
-  // Let go: stop dragging
-  function endDrag() {
-    dragStart.current = null;
-  }
+  const { panelRef, dragProps, getStyle } = useFloatingPanel();
 
   const nameOf = (id) => nodes.find((n) => n.id === id)?.data.label ?? id;
   const outgoing = edges.filter((e) => e.source === node.id);
@@ -90,14 +27,12 @@ export default function NodePanel({ node, nodes, edges, repoUrl, onClose }) {
     <aside
       ref={panelRef}
       className="absolute right-4 top-4 flex max-h-[calc(100%-2rem)] w-96 flex-col rounded-xl border bg-card shadow-lg"
-      style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
+      style={getStyle()}
     >
       {/* Header: drag handle + buttons */}
       <div
         className="flex cursor-grab select-none items-center justify-between border-b px-5 py-3 active:cursor-grabbing"
-        onPointerDown={startDrag}
-        onPointerMove={onDrag}
-        onPointerUp={endDrag}
+        {...dragProps}
       >
         {/* Notion-style toggle: chevron + title collapse the panel */}
         <button
@@ -166,33 +101,39 @@ export default function NodePanel({ node, nodes, edges, repoUrl, onClose }) {
                 {files.map((file) => {
                   const slash = file.lastIndexOf("/");
                   return (
-                    <li key={file} className="group flex items-center gap-1 rounded bg-muted px-2 py-1 mb-1">
-                      <div className="min-w-0 flex-1" title={file}>
+                    <li key={file} className="mb-1 flex items-center gap-1 rounded bg-muted px-2 py-1">
+                      <button
+                        type="button"
+                        onClick={() => onViewFile(file)}
+                        title={`View ${file}`}
+                        className="min-w-0 flex-1 text-left hover:underline"
+                      >
                         <div className="break-all font-medium">{file.slice(slash + 1)}</div>
                         {slash > 0 && <div className="break-all text-[10px] text-muted-foreground">{file.slice(0, slash)}</div>}
-                      </div>
-                      <div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-                        {repoUrl && (
-                          <a
-                            href={`${repoUrl}/blob/HEAD/${file.split("/").map(encodeURIComponent).join("/")}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            title="Open on GitHub"
-                            aria-label={`Open ${file} on GitHub`}
-                            className="rounded p-1 hover:bg-background"
-                          >
-                            <ExternalLink className="size-3.5" />
-                          </a>
-                        )}
-                        <button
-                          title="Ask about this file"
-                          aria-label={`Ask about ${file}`}
-                          onClick={() => askAbout(`What does ${file} do, and how does it fit into ${label}?`, asNode)}
-                          className="rounded p-1 hover:bg-background"
+                      </button>
+                      <DropdownMenu modal={false}>
+                        <DropdownMenuTrigger
+                          aria-label={`Actions for ${file}`}
+                          className="shrink-0 rounded p-1 hover:bg-background"
                         >
-                          <MessageSquare className="size-3.5" />
-                        </button>
-                      </div>
+                          <MoreHorizontal className="size-4" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onSelect={() => onViewFile(file)}>
+                            <Code /> View code
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => askAbout(`What does ${file.slice(slash + 1)} do?`, asNode, file)}>
+                            <MessageSquare /> Ask about this file
+                          </DropdownMenuItem>
+                          {repoUrl && (
+                            <DropdownMenuItem asChild>
+                              <a href={githubFileUrl(repoUrl, file)} target="_blank" rel="noreferrer">
+                                <ExternalLink /> Open on GitHub
+                              </a>
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </li>
                   );
                 })}

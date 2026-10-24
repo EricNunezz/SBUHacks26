@@ -21,6 +21,7 @@ const NAV_ITEMS = [
 export default function NavRepo({ selectedRepoId, chatOpen, onToggleChat }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const onStats = pathname.endsWith("/stats"); // the Stats page is static: no chat there
 
   return (
     <SidebarGroup>
@@ -30,7 +31,7 @@ export default function NavRepo({ selectedRepoId, chatOpen, onToggleChat }) {
           const Icon = item.icon;
           // Chat is "active" while its panel is open; others while the URL matches
           const isActive = item.chat
-            ? chatOpen
+            ? chatOpen && !onStats
             : !!selectedRepoId && pathname === item.to(selectedRepoId);
 
           return (
@@ -38,7 +39,7 @@ export default function NavRepo({ selectedRepoId, chatOpen, onToggleChat }) {
               <SidebarMenuButton
                 tooltip={item.title}
                 isActive={isActive}
-                disabled={!selectedRepoId}
+                disabled={!selectedRepoId || (item.chat && onStats)}
                 onClick={() => (item.chat ? onToggleChat() : navigate(item.to(selectedRepoId)))}
               >
                 <Icon />

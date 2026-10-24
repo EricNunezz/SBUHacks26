@@ -2,7 +2,6 @@
 import asyncio
 import re
 from uuid import UUID
-from routers.chat import router as chat_router
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Response
@@ -17,7 +16,6 @@ from repo_analyzer import analyze_repo_with_gemini  # <--- Imported from our new
 
 
 app = FastAPI(title="Repo Architecture Diagram API")
-app.include_router(chat_router)
 
 # Allow the Vite dev server (the frontend) to call this API from the browser
 app.add_middleware(
@@ -52,6 +50,7 @@ def get_current_user_id(authorization: str | None = Header(default=None)) -> str
 
 from routers.stats import router as stats_router; app.include_router(stats_router)  # noqa: E402
 from routers.chat import router as chat_router; app.include_router(chat_router)  # noqa: E402
+from routers.files import router as files_router; app.include_router(files_router)  # noqa: E402
 
 
 # --- Per-user repos ---
@@ -88,7 +87,7 @@ async def add_my_repo(body: AddRepoBody, user_id: str = Depends(get_current_user
         if repo:
             repo = await asyncio.to_thread(db.update_repo_diagram, repo["id"], analyzed_data["summary"], diagram, analyzed_data["github_context"])
         else:
-           try:
+            try:
                 repo = await asyncio.to_thread(db.save_repo, owner, name, url, analyzed_data["summary"], diagram, analyzed_data["github_context"])
             except Exception as e:
                 if "unique constraint" in str(e).lower() or "23505" in str(e):

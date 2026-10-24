@@ -66,6 +66,7 @@ function Shell({
   const match = useMatch("/repo/:repoId/*");
   const selectedRepoId = match?.params.repoId;
   const selectedRepo = repos.find((r) => r.id === selectedRepoId);
+  const onStats = Boolean(useMatch("/repo/:repoId/stats")); // no chat on the static Stats page
 
   return (
     // SidebarProvider holds the collapsed/expanded state
@@ -134,7 +135,7 @@ function Shell({
             </div>
             )}
           </div>
-          {selectedRepoId && <ChatPanel repoName={selectedRepo?.name} />}
+          {selectedRepoId && !onStats && <ChatPanel repoName={selectedRepo?.name} />}
         </div>
       </SidebarInset>
       <AddRepoDialog open={addRepoOpen} onOpenChange={setAddRepoOpen} onAddRepo={onAddRepo} />

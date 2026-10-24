@@ -72,7 +72,7 @@ def update_repo_diagram(repo_id, summary, diagram, github_context):
     )
     return result.data[0]
 
-def save_message(repo_id, node_id, role, content):
+def save_message(repo_id, node_id, role, content, file_path=None):
     result = (
         supabase.table("chat_messages")
         .insert({
@@ -80,6 +80,7 @@ def save_message(repo_id, node_id, role, content):
             "node_id": node_id,
             "role": role,
             "content": content,
+            "file_path": file_path,
         })
         .execute()
     )
@@ -92,6 +93,18 @@ def get_messages(repo_id, node_id):
         .select("*")
         .eq("repo_id", repo_id)
         .eq("node_id", node_id)
+        .order("created_at")
+        .execute()
+    )
+    return result.data
+
+
+def get_repo_messages(repo_id):
+    """The whole chat thread for a repo (every node_id), oldest first."""
+    result = (
+        supabase.table("chat_messages")
+        .select("id, role, content, node_id, file_path, created_at")
+        .eq("repo_id", repo_id)
         .order("created_at")
         .execute()
     )

@@ -18,3 +18,8 @@ export function normalizeGithubUrl(input) {
 export function isValidGithubUrl(url) {
   return normalizeGithubUrl(url) !== null;
 }
+
+// Link to a file on GitHub (default branch)
+export function githubFileUrl(repoUrl, file) {
+  return `${repoUrl}/blob/HEAD/${file.split("/").map(encodeURIComponent).join("/")}`;
+}
