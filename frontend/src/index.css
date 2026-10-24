@@ -1,0 +1,9 @@
+/* Tailwind v4: one import pulls in everything */
+@import "tailwindcss";
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
