@@ -20,6 +20,8 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 GEMINI_FALLBACK_MODEL = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-3.5-flash-lite")
 RETRY_DELAYS = (2, 5, 10)  
 RETRYABLE_CODES = (429, 500, 503)
+MIN_NODES_FOR_BIG_REPO = 4
+BIG_REPO_SOURCE_FILES = 8
 
 log = logging.getLogger("uvicorn.error")
 
@@ -102,9 +104,36 @@ SKIP_DIRS = {
 SKIP_FILES = {"package-lock.json", "pnpm-lock.yaml"}
 
 
+# Markdown and template files can be the substance of a repo (skills, prompts, themes, templates)
+CONTENT_EXTS = (".md", ".mdx", ".txt", ".tmpl", ".j2", ".jinja", ".hbs", ".ejs", ".liquid", ".prompt")
+FEW_SOURCE_FILES = 15  # fewer source files than this and content folders count as source
+CONTENT_FOLDER_MIN = 5  # content files a folder needs to count as a dedicated content folder
+
+
+def content_folder(dirs: List[str]) -> str:
+    """Top-level folder a file lives in; dot folders like .claude/skills go one level deeper."""
+    if not dirs:
+        return ""
+    return "/".join(dirs[:2]) if dirs[0].startswith(".") else dirs[0]
+
+
+def content_folders(paths: List[str]) -> set:
+    """Folders full of markdown/template files, but only for repos with few real source files."""
+    if sum(is_source_path(p) for p in paths) >= FEW_SOURCE_FILES:
+        return set()
+    counts: Dict[str, int] = {}
+    for path in paths:
+        *dirs, name = path.split("/")
+        folder = content_folder(dirs)
+        if folder and not SKIP_DIRS & set(dirs) and name.lower().endswith(CONTENT_EXTS):
+            counts[folder] = counts.get(folder, 0) + 1
+    return {folder for folder, n in counts.items() if n >= CONTENT_FOLDER_MIN}
+
+
 def filter_paths(paths: List[str]) -> List[str]:
     """Drops noise (changelogs, docs, lockfiles, generated or vendored code) before the tree goes to Gemini."""
     has_src = any({"src", "lib"} & set(p.split("/")[:-1]) for p in paths)
+    content = content_folders(paths)
     kept = []
     for path in paths:
         *dirs, name = path.split("/")
@@ -114,7 +143,8 @@ def filter_paths(paths: List[str]) -> List[str]:
         if name in SKIP_FILES or upper.startswith("CHANGELOG") or name.endswith((".lock", ".snap")):
             continue
         if upper.endswith((".MD", ".MDX")) and not (not dirs and upper.startswith("README")):
-            continue
+            if content_folder(dirs) not in content:
+                continue
         kept.append(path)
     return kept
 
@@ -136,6 +166,10 @@ SOURCE_EXTS = (
     ".cs", ".c", ".cc", ".cpp", ".h", ".hpp", ".swift", ".scala", ".ex", ".vue", ".svelte",
 )
 ENTRY_STEMS = {"main", "index", "app", "server", "cli", "__main__", "manage", "wsgi", "asgi"}
+
+
+def is_source_path(path: str) -> bool:
+    return path.endswith(SOURCE_EXTS) and not path.endswith(".d.ts") and not is_test_path(path)
 
 
 def is_test_path(path: str) -> bool:
@@ -227,12 +261,15 @@ def unique(value: str, taken: set) -> str:
 
 
 def clean_diagram(data: dict) -> dict:
-    """Makes ids slug-safe and unique, trims long labels, and drops edges that point at missing nodes."""
-    node_ids, id_map, nodes = set(), {}, []
+    """Makes ids slug-safe and unique, trims long labels, keeps each file in the first node that lists it,
+    and drops edges that point at missing nodes."""
+    node_ids, id_map, nodes, seen_files = set(), {}, [], set()
     for n in data["nodes"]:
         new_id = unique(slug(n["id"], "node"), node_ids)
         id_map.setdefault(n["id"], new_id)  # edges that use a duplicated id point at the first one
-        nodes.append({**n, "id": new_id, "label": trim_words(n["label"])})
+        files = [f for f in dict.fromkeys(n["files"]) if f not in seen_files]  # each file belongs to one node
+        seen_files.update(files)
+        nodes.append({**n, "id": new_id, "label": trim_words(n["label"]), "files": files})
     if not nodes:
         raise HTTPException(status_code=502, detail="Gemini returned an empty diagram. Try again.")
 
@@ -260,6 +297,7 @@ async def analyze_repo_with_gemini(owner: str, repo_name: str, repo_url: str) ->
     if len(file_paths) > MAX_TREE_PATHS:
         tree_notes.append(f"Only the first {MAX_TREE_PATHS} of {len(file_paths)} paths are listed.")
     tree_note = "\n    ".join(tree_notes)
+    source_count = sum(is_source_path(p) for p in file_paths)
 
     prompt = f"""
     Analyze the following GitHub repository file tree for '{repo_slug}' ({repo_url}).
@@ -277,10 +315,19 @@ async def analyze_repo_with_gemini(owner: str, repo_name: str, repo_url: str) ->
     - Nodes representing distinct structural blocks (frontend, backend, database, config, etc.) mapping to their respective files and key points.
     - Edges representing how these nodes connect.
 
+    This repository has {source_count} source code files.
+
     Rules:
+    - Use 5 to 10 nodes. Only go below 5 if the repo has fewer than about 8 source files.
+    - Split large areas by responsibility instead of lumping them together. For example, a backend with auth, products and payments routes becomes separate nodes.
+    - Every important external service, framework or engine named in the README, manifests or code (for example Stripe, Firebase, Puppeteer/Chromium, AWS Lambda, API Gateway, MongoDB, OpenAI) must be its own node with category "external", or "database" for databases, connected to the parts that use it.
+    - Each file belongs to at most one node. Never repeat a file across nodes.
+    - Edges show how requests and data actually flow at runtime, including fan-out and cross connections, not just a single chain.
+    - Include a config node only if it is genuinely useful. Merge all build and config files into at most one config node.
+    - Any technology mentioned in your summary must appear as a node or in a node's key points.
     - Base each node's summary and key points on the actual code and README above, not on guesses from file names. Never invent behavior the content doesn't support.
     - Prefer real source files in each node's "files" list, and only list paths that appear in the File Paths.
-    - Each node's "files" must be its most important SOURCE files: code a beginner would actually read to understand that part. At most 8 files per node. Never list release notes, changelogs, lockfiles, or docs.
+    - Each node's "files" must be its most important SOURCE files: code a beginner would actually read to understand that part. At most 8 files per node. Never list release notes, changelogs, lockfiles, or docs. Exception: when the repo is mostly markdown or template content (skills, prompts, themes, templates), those files in the File Paths are its source and may be listed.
     - Node labels are 2 to 4 words.
     - Edge labels are 2 to 4 words and a verb phrase, like "calls", "reads from", or "sends events to".
     """
@@ -291,37 +338,60 @@ async def analyze_repo_with_gemini(owner: str, repo_name: str, repo_url: str) ->
         temperature=0.2,
     )
 
+    used = {}  # which model produced the answer
+
     async def generate(model):
         response = await client.aio.models.generate_content(model=model, contents=prompt, config=config)
+        used["model"] = model
         return response.parsed
 
     def is_temporary(e):
         return getattr(e, "code", None) in RETRYABLE_CODES
 
-    parsed = None
-    try:
-        for delay in (0, *RETRY_DELAYS):
-            await asyncio.sleep(delay)
-            try:
-                parsed = await generate(GEMINI_MODEL)
-                log.info("Gemini analysis succeeded with %s", GEMINI_MODEL)
-                break
-            except Exception as e:
-                if not is_temporary(e):
-                    raise
-                log.warning("Gemini %s failed temporarily (%s), retrying", GEMINI_MODEL, e)
-        else:
-            parsed = await generate(GEMINI_FALLBACK_MODEL)
-            log.info("Gemini analysis succeeded with fallback %s", GEMINI_FALLBACK_MODEL)
-    except Exception as e:
-        log.error("Gemini analysis failed: %s", e)
-        if is_temporary(e):
-            raise HTTPException(status_code=503, detail="The AI is busy right now, please try again in a minute")
-        raise HTTPException(status_code=502, detail=f"Gemini analysis failed: {e}")
+    async def run_generation():
+        parsed = None
+        try:
+            for delay in (0, *RETRY_DELAYS):
+                await asyncio.sleep(delay)
+                try:
+                    parsed = await generate(GEMINI_MODEL)
+                    log.info("Gemini analysis succeeded with %s", GEMINI_MODEL)
+                    break
+                except Exception as e:
+                    if not is_temporary(e):
+                        raise
+                    log.warning("Gemini %s failed temporarily (%s), retrying", GEMINI_MODEL, e)
+            else:
+                parsed = await generate(GEMINI_FALLBACK_MODEL)
+                log.info("Gemini analysis succeeded with fallback %s", GEMINI_FALLBACK_MODEL)
+        except Exception as e:
+            log.error("Gemini analysis failed: %s", e)
+            if is_temporary(e):
+                raise HTTPException(status_code=503, detail="The AI is busy right now, please try again in a minute")
+            raise HTTPException(status_code=502, detail=f"Gemini analysis failed: {e}")
 
-    if parsed is None:
-        raise HTTPException(status_code=502, detail="Gemini returned an unreadable response. Try again.")
-    result = clean_diagram(parsed.model_dump())
+        if parsed is None:
+            raise HTTPException(status_code=502, detail="Gemini returned an unreadable response. Try again.")
+        return clean_diagram(parsed.model_dump())
+
+    result = await run_generation()
+
+    # Too coarse for a repo this size: ask once for a more detailed breakdown, keeping the first answer if that fails
+    if len(result["nodes"]) < MIN_NODES_FOR_BIG_REPO and source_count >= BIG_REPO_SOURCE_FILES:
+        log.info("Only %d nodes for %d source files, retrying for more detail", len(result["nodes"]), source_count)
+        prompt += (
+            f"\n    Your previous answer had only {len(result['nodes'])} nodes, which is too coarse for "
+            f"{source_count} source files. Give a more detailed breakdown that follows the 5 to 10 node rule."
+        )
+        try:
+            detailed = await run_generation()
+            if len(detailed["nodes"]) > len(result["nodes"]):
+                result = detailed
+        except HTTPException:
+            pass
+
+    result["model"] = used.get("model")
+    result["used_fallback"] = used.get("model") == GEMINI_FALLBACK_MODEL
     # Saved with the repo so the chat can reuse it later
     result["github_context"] = {
         "readme": content["readme"],
