@@ -52,6 +52,7 @@ function Flow() {
       <ReactFlow
         nodes={layoutedNodes}
         edges={mockEdges}
+        nodeTypes={nodeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
         fitView
         onNodeClick={handleNodeClick}
