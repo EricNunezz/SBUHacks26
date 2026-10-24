@@ -18,7 +18,7 @@ load_dotenv()
 client = genai.Client()
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 GEMINI_FALLBACK_MODEL = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-3.5-flash-lite")
-RETRY_DELAYS = (2, 5, 10)  # seconds to wait before each retry
+RETRY_DELAYS = (2, 5, 10)  
 RETRYABLE_CODES = (429, 500, 503)
 
 log = logging.getLogger("uvicorn.error")

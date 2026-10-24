@@ -21,6 +21,7 @@ import HomePage from "@/pages/HomePage.jsx";
 import EmptyRepoState from "@/pages/EmptyRepoState.jsx";
 import AddRepoDialog from "@/components/add-repo-dialog";
 import StatsPage from "@/pages/StatsPage.jsx";
+import AddRepoProgress from "@/pages/AddRepoProgress.jsx";
 import AuthDialog from "@/components/auth-dialog";
 import { AuthProvider, useAuth } from "@/context/AuthContext.jsx";
 import { ChatProvider, useChat } from "@/context/ChatContext.jsx";
@@ -45,7 +46,17 @@ function repoNameFromUrl(url) {
 
 // Main app layout (sidebar + pages)
 // reposStatus is "loading" | "ready" | "error" (only logged-in users ever see loading/error)
-function Shell({ repos, newestRepoId, reposStatus, onRetry, notice, onAddRepo, onDeleteRepo, onLogout }) {
+function Shell({
+  repos,
+  newestRepoId,
+  reposStatus,
+  onRetry,
+  notice,
+  adding,
+  onAddRepo,
+  onDeleteRepo,
+  onLogout,
+}) {
   // Chat state is shared (sidebar, panel, node panel, board) through ChatContext
   const chat = useChat();
   // Add repo dialog. Lives here so the sidebar and the empty state open the same one.
@@ -80,7 +91,18 @@ function Shell({ repos, newestRepoId, reposStatus, onRetry, notice, onAddRepo, o
         {/* Page on the left, optional chat panel on the right */}
         <div className="flex min-h-0 flex-1">
           <div className="min-w-0 flex-1">
-            {reposStatus === "loading" ? (
+            {adding ? (
+              <AddRepoProgress
+                key={adding.id}
+                name={repoNameFromUrl(adding.url)}
+                runAdd={adding.run}
+                onComplete={adding.onComplete}
+                onAddDifferent={() => {
+                  adding.onCancel();
+                  setAddRepoOpen(true);
+                }}
+              />
+            ) : reposStatus === "loading" ? (
               <div className="flex h-full items-center justify-center">
                 <Loader2 className="size-6 animate-spin text-muted-foreground" />
               </div>
@@ -92,6 +114,7 @@ function Shell({ repos, newestRepoId, reposStatus, onRetry, notice, onAddRepo, o
                 </Button>
               </div>
             ) : (
+            <div className="h-full animate-in fade-in duration-700">
             <Routes>
               {/* With repos, "/" goes to the most recent one; otherwise show the empty state */}
               <Route
@@ -108,6 +131,7 @@ function Shell({ repos, newestRepoId, reposStatus, onRetry, notice, onAddRepo, o
               <Route path="/repo/:repoId" element={<DiagramBoard />} />
               <Route path="/repo/:repoId/stats" element={<StatsPage />} />
             </Routes>
+            </div>
             )}
           </div>
           {selectedRepoId && <ChatPanel repoName={selectedRepo?.name} />}
@@ -129,6 +153,8 @@ function Gate() {
   const [userRepos, setUserRepos] = useState([]);
   const [reposStatus, setReposStatus] = useState("loading"); // backend list: loading | ready | error
   const [notice, setNotice] = useState(""); // error from a failed add / delete
+  const [addingUrl, setAddingUrl] = useState(""); // repo being generated; shows the progress screen
+  const addId = useRef(0); // new key per add so the progress screen restarts
   const loadSeq = useRef(0); // lets a newer list fetch win over an older one
   const repos = user ? userRepos : guestRepos;
   // Backend list is newest first; the guest list is in append order (newest last)
@@ -178,10 +204,9 @@ function Gate() {
     navigate(`/repo/${repo.id}`);
   }
 
-  // Logged in: POST to the backend (generation runs inside it, 10-30s), refresh the list, open the returned repo.
+  // Logged in: show the progress screen, which POSTs to the backend (generation runs inside it).
   // `current` is the list to check for duplicates (passed in because it can be stale right after login).
-  // Throws on failure so the caller can show the message.
-  async function addRepoAsUser(url, current) {
+  function addRepoAsUser(url, current) {
     const name = repoNameFromUrl(url);
     const existing = current.find((r) => r.name.toLowerCase() === name.toLowerCase());
     if (existing) {
@@ -189,9 +214,15 @@ function Gate() {
       return;
     }
     setNotice("");
+    addId.current += 1;
+    setAddingUrl(url);
+  }
+
+  // What the progress screen runs: add, then refresh the sidebar list (a refresh failure isn't an add failure)
+  async function runAdd(url) {
     const repo = await addMyRepo(url);
-    await refreshUserRepos();
-    navigate(`/repo/${repo.id}`);
+    await refreshUserRepos().catch(() => {});
+    return repo;
   }
 
   // Remove a repo from this user's list (never the shared cached repo)
@@ -242,7 +273,7 @@ function Gate() {
     // Logged in or signed up: use the backend list (newest first), not the stale local one
     try {
       const list = await refreshUserRepos();
-      if (url) await addRepoAsUser(url, list);
+      if (url) addRepoAsUser(url, list);
       else navigate(list[0] ? `/repo/${list[0].id}` : "/"); // most recent, or empty state
     } catch (err) {
       reportError(err, "Couldn't load your repos.");
@@ -265,6 +296,7 @@ function Gate() {
     setUserRepos([]);
     setReposStatus("loading");
     setNotice("");
+    setAddingUrl("");
     setEntered(false);
     setPendingRepoUrl("");
     setLoginOpen(false);
@@ -305,6 +337,18 @@ function Gate() {
           refreshUserRepos().catch(() => {});
         }}
         notice={notice}
+        adding={
+          addingUrl && {
+            id: addId.current,
+            url: addingUrl,
+            run: () => runAdd(addingUrl),
+            onComplete: (repo) => {
+              setAddingUrl("");
+              navigate(`/repo/${repo.id}`);
+            },
+            onCancel: () => setAddingUrl(""),
+          }
+        }
         onAddRepo={(url) => (user ? addRepoAsUser(url, userRepos) : addRepoAsGuest(url))}
         onDeleteRepo={deleteRepoFromList}
         onLogout={handleLogout}
