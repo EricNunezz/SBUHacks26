@@ -2,17 +2,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Cog } from "lucide-react";
 import RepoNode from "@/components/RepoNode";
+import LabeledEdge from "@/components/LabeledEdge";
 import {
   ReactFlow,
   ReactFlowProvider,
   Background,
   BackgroundVariant,
   Controls,
+  getViewportForBounds,
   useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
-import { layoutDiagram, NODE_WIDTH, NODE_HEIGHT } from "@/utils/layout";
+import { layoutGraph, NODE_WIDTH, NODE_HEIGHT } from "@/utils/layout";
 import sampleRepo from "@/mock/sampleRepo.json"; // shown to guests, who have no backend ids
 import NodePanel from "@/components/NodePanel";
 import { Button } from "@/components/ui/button";
@@ -22,6 +24,10 @@ import { useChat } from "@/context/ChatContext";
 import { defaultEdgeOptions, gridProps } from "@/theme/flow";
 
 const nodeTypes = { repoNode: RepoNode };
+const edgeTypes = { labeled: LabeledEdge };
+
+const PANEL_INSET = 416; // NodePanel: w-96 (384) + right-4 (16) + a 16px gap
+const FOCUS_ZOOM = { min: 0.6, max: 1.1 };
 
 const POLL_MS = 4000; // how often a pending repo is re-fetched
 const POLL_GIVE_UP_MS = 3 * 60 * 1000; // stop polling after this long
@@ -57,7 +63,8 @@ function Flow() {
   const [pollKey, setPollKey] = useState(0); // bump to restart polling (Try again)
   const [timedOut, setTimedOut] = useState(false); // polled for 3 minutes and it's still pending
   const [selectedNode, setSelectedNode] = useState(null);
-  const { setCenter, fitView } = useReactFlow();
+  const { setViewport, fitView } = useReactFlow();
+  const boardRef = useRef(null);
   const { isOpen: chatOpen, isCollapsed: chatCollapsed, setDiagram } = useChat();
 
   // load the diagram whenever the repo changes (logged-in users only)
@@ -152,7 +159,9 @@ function Flow() {
       position: { x: 0, y: 0 },
       data: node,
     }));
-    return { nodes: layoutDiagram(rfNodes, diagram.edges), edges: diagram.edges };
+    const { nodes: laidOut, labelY } = layoutGraph(rfNodes, diagram.edges);
+    const rfEdges = diagram.edges.map((e) => ({ ...e, type: "labeled", data: { labelY: labelY[e.id] } }));
+    return { nodes: laidOut, edges: rfEdges };
   }, [ready, diagram]);
 
   // fit the view once a new diagram has been laid out (wait a frame so the nodes are mounted)
@@ -162,6 +171,19 @@ function Flow() {
     return () => cancelAnimationFrame(frame);
   }, [nodes, fitView]);
 
+  // Fit the node's bounds into the part of the board left of the NodePanel
+  const flyTo = useCallback(
+    (node, duration) => {
+      const el = boardRef.current;
+      if (!el) return;
+      const inset = Math.min(PANEL_INSET, el.clientWidth * 0.5);
+      const bounds = { x: node.position.x, y: node.position.y, width: NODE_WIDTH, height: NODE_HEIGHT };
+      const view = getViewportForBounds(bounds, el.clientWidth - inset, el.clientHeight, FOCUS_ZOOM.min, FOCUS_ZOOM.max, 0.2);
+      setViewport(view, { duration });
+    },
+    [setViewport],
+  );
+
   // Select a node, open its panel, and fly the camera to it.
   // Shared by node clicks on the board and by node chips in the chat.
   const focusNode = useCallback(
@@ -169,12 +191,9 @@ function Flow() {
       const node = nodes.find((n) => n.id === nodeId);
       if (!node) return;
       setSelectedNode(node);
-      setCenter(node.position.x + NODE_WIDTH / 2, node.position.y + NODE_HEIGHT / 2, {
-        zoom: 1.5,
-        duration: 600,
-      });
+      flyTo(node, 600);
     },
-    [nodes, setCenter],
+    [nodes, flyTo],
   );
 
   // Tell the chat which nodes exist and how to focus one (cleared when the board goes away)
@@ -196,16 +215,13 @@ function Flow() {
     const timer = setTimeout(() => {
       const sel = selectedRef.current;
       if (sel) {
-        setCenter(sel.position.x + NODE_WIDTH / 2, sel.position.y + NODE_HEIGHT / 2, {
-          zoom: 1.5,
-          duration: 300,
-        });
+        flyTo(sel, 300);
       } else {
         fitView({ duration: 300 });
       }
     }, 320);
     return () => clearTimeout(timer);
-  }, [chatOpen, chatCollapsed, setCenter, fitView]);
+  }, [chatOpen, chatCollapsed, flyTo, fitView]);
 
   //nested function to handle clicking a node
   function handleNodeClick(event, node) {
@@ -267,7 +283,7 @@ function Flow() {
   }
 
   return (
-    <div className="relative h-full w-full animate-in fade-in duration-500">
+    <div ref={boardRef} className="relative h-full w-full animate-in fade-in duration-500">
       {isGuest && (
         <div className="absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-md border bg-card px-3 py-1 text-xs text-muted-foreground shadow-sm">
           Sample diagram. Sign up to map your own repos
@@ -277,6 +293,7 @@ function Flow() {
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
         fitView
         onNodeClick={handleNodeClick}
@@ -290,6 +307,7 @@ function Flow() {
           node={selectedNode}
           nodes={nodes}
           edges={edges}
+          repoUrl={diagram.url}
           onClose={handleClose}
         />
       )}
