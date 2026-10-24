@@ -58,6 +58,20 @@ def save_repo(owner, name, url, summary, diagram, github_context):
     )
     return result.data[0] 
 
+# Fills in a repo row that was saved earlier without a diagram
+def update_repo_diagram(repo_id, summary, diagram, github_context):
+    result = (
+        supabase.table("repos")
+        .update({
+            "summary": summary,
+            "diagram": diagram,
+            "github_context": github_context,
+        })
+        .eq("id", repo_id)
+        .execute()
+    )
+    return result.data[0]
+
 def save_message(repo_id, node_id, role, content):
     result = (
         supabase.table("chat_messages")

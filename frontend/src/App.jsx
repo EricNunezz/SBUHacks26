@@ -35,12 +35,6 @@ import {
   clearGuestState,
 } from "@/utils/pendingRepo";
 
-// Called with a valid GitHub URL (home page or sidebar dialog)
-function handleAddRepo(url) {
-  // TODO: start the backend generation request here (runs in the background)
-  console.log("Add repo:", url);
-}
-
 // "https://github.com/owner/repo/" -> "owner/repo"
 function repoNameFromUrl(url) {
   return url
@@ -184,8 +178,9 @@ function Gate() {
     navigate(`/repo/${repo.id}`);
   }
 
-  // Logged in: POST to the backend, refresh the list, open the returned repo.
+  // Logged in: POST to the backend (generation runs inside it, 10-30s), refresh the list, open the returned repo.
   // `current` is the list to check for duplicates (passed in because it can be stale right after login).
+  // Throws on failure so the caller can show the message.
   async function addRepoAsUser(url, current) {
     const name = repoNameFromUrl(url);
     const existing = current.find((r) => r.name.toLowerCase() === name.toLowerCase());
@@ -193,14 +188,10 @@ function Gate() {
       navigate(`/repo/${existing.id}`);
       return;
     }
-    try {
-      setNotice("");
-      const repo = await addMyRepo(url);
-      await refreshUserRepos();
-      navigate(`/repo/${repo.id}`);
-    } catch (err) {
-      reportError(err, "Couldn't add that repo.");
-    }
+    setNotice("");
+    const repo = await addMyRepo(url);
+    await refreshUserRepos();
+    navigate(`/repo/${repo.id}`);
   }
 
   // Remove a repo from this user's list (never the shared cached repo)
@@ -232,7 +223,6 @@ function Gate() {
   function handleHomeSubmit(url) {
     savePendingRepo(url);
     setPendingRepoUrl(url);
-    handleAddRepo(url);
   }
 
   // Popup finished (login, signup, or guest): add the pending repo and enter the app.
@@ -315,11 +305,7 @@ function Gate() {
           refreshUserRepos().catch(() => {});
         }}
         notice={notice}
-        onAddRepo={(url) => {
-          handleAddRepo(url);
-          if (user) addRepoAsUser(url, userRepos);
-          else addRepoAsGuest(url);
-        }}
+        onAddRepo={(url) => (user ? addRepoAsUser(url, userRepos) : addRepoAsGuest(url))}
         onDeleteRepo={deleteRepoFromList}
         onLogout={handleLogout}
       />
