@@ -86,12 +86,11 @@ async def add_my_repo(body: AddRepoBody, user_id: str = Depends(get_current_user
         diagram = {"nodes": analyzed_data["nodes"], "edges": analyzed_data["edges"]}
 
         if repo:
-            repo = await asyncio.to_thread(db.update_repo_diagram, repo["id"], analyzed_data["summary"], diagram, {})
+            repo = await asyncio.to_thread(db.update_repo_diagram, repo["id"], analyzed_data["summary"], diagram, analyzed_data["github_context"])
         else:
-            try:
-                repo = await asyncio.to_thread(db.save_repo, owner, name, url, analyzed_data["summary"], diagram, {})
+           try:
+                repo = await asyncio.to_thread(db.save_repo, owner, name, url, analyzed_data["summary"], diagram, analyzed_data["github_context"])
             except Exception as e:
-                # Race-safe handling for concurrent repo additions (Unique constraint violation)
                 if "unique constraint" in str(e).lower() or "23505" in str(e):
                     repo = await asyncio.to_thread(db.get_repo_by_url, url)
                     if not repo:

@@ -8,12 +8,12 @@ export const NODE_HEIGHT = 76; // room for a 2-line label plus the category
 export const MAX_LABEL = 28;
 export const shortLabel = (label = "") => (label.length > MAX_LABEL ? `${label.slice(0, MAX_LABEL - 1)}…` : label);
 
-// Returns the positioned nodes plus `labelY`: { [edgeId]: y } where each edge's label fits between rows.
+// Returns the positioned nodes (wrapped in an object so more layout info can be added later).
 export function layoutGraph(nodes, edges, direction = "TB"){
   //make the empty graph and set the direction (Top -> bottom) & spacing between nodes 
   const g = new dagre.graphlib.Graph({ multigraph: true });
   g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: direction, nodesep: 60, ranksep: 130});
+  g.setGraph({ rankdir: direction, nodesep: 100, ranksep: 170});
 
   //tell dagre about every box and its size
   nodes.forEach((node) => {
@@ -30,11 +30,6 @@ export function layoutGraph(nodes, edges, direction = "TB"){
   //let dagre do the math 
   dagre.layout(g);
 
-  const labelY = {};
-  edges.forEach((edge, i) => {
-    labelY[edge.id ?? String(i)] = g.edge(edge.source, edge.target, edge.id ?? String(i))?.y;
-  });
-
   //copy dagre's poositions onto our nodes 
   const laidOut = nodes.map((node) => {
     const pos = g.node(node.id);
@@ -46,7 +41,7 @@ export function layoutGraph(nodes, edges, direction = "TB"){
       }
     };
   });
-  return { nodes: laidOut, labelY };
+  return { nodes: laidOut };
 }
 
 export function layoutDiagram(nodes, edges, direction = "TB") {

@@ -24,6 +24,7 @@ body,
   --steel-line: #D6D3CC; /* subtle borders: steel tint on paper */
   --copper: #B87333; /* brand mark, category color */
   --copper-deep: #A5632B; /* copper for filled buttons (white text passes 4.5:1) */
+  --rust: #A0442C; /* failed state */
   --brass: #C9A227;
   --brass-tint: #EFE5BD; /* brass for hover/secondary surfaces, keeps iron text readable */
   --grid: color-mix(in srgb, var(--steel) 22%, transparent); /* blueprint grid lines */
