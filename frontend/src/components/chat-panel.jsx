@@ -113,6 +113,8 @@ function ChatBody({ repoName }) {
     });
   }
 
+
+
   function onKeyDown(e) {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
@@ -199,6 +201,8 @@ function ChatBody({ repoName }) {
     </>
   );
 }
+
+
 
 function HeaderButton({ label, onClick, disabled, children }) {
   return (

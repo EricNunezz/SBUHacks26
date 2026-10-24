@@ -2,6 +2,7 @@
 import asyncio
 import re
 from uuid import UUID
+from routers.chat import router as chat_router
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Response
@@ -14,7 +15,9 @@ load_dotenv()
 import db  # noqa: E402
 from repo_analyzer import analyze_repo_with_gemini  # <--- Imported from our new file
 
+
 app = FastAPI(title="Repo Architecture Diagram API")
+app.include_router(chat_router)
 
 # Allow the Vite dev server (the frontend) to call this API from the browser
 app.add_middleware(
@@ -47,7 +50,8 @@ def get_current_user_id(authorization: str | None = Header(default=None)) -> str
     return response.user.id
 
 
-from routers.stats import router as stats_router; app.include_router(stats_router)  # noqa: E402 (needs get_current_user_id defined above)
+from routers.stats import router as stats_router; app.include_router(stats_router)  # noqa: E402
+from routers.chat import router as chat_router; app.include_router(chat_router)  # noqa: E402
 
 
 # --- Per-user repos ---
@@ -84,7 +88,15 @@ async def add_my_repo(body: AddRepoBody, user_id: str = Depends(get_current_user
         if repo:
             repo = await asyncio.to_thread(db.update_repo_diagram, repo["id"], analyzed_data["summary"], diagram, analyzed_data["github_context"])
         else:
-            repo = await asyncio.to_thread(db.save_repo, owner, name, url, analyzed_data["summary"], diagram, analyzed_data["github_context"])
+           try:
+                repo = await asyncio.to_thread(db.save_repo, owner, name, url, analyzed_data["summary"], diagram, analyzed_data["github_context"])
+            except Exception as e:
+                if "unique constraint" in str(e).lower() or "23505" in str(e):
+                    repo = await asyncio.to_thread(db.get_repo_by_url, url)
+                    if not repo:
+                        raise HTTPException(status_code=500, detail="Failed to save or retrieve repository.")
+                else:
+                    raise e
 
     await asyncio.to_thread(db.link_repo_to_user, user_id, repo["id"])
     return repo
