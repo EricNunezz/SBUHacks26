@@ -57,7 +57,7 @@ export default function ChatPanel({ repoName }) {
 }
 
 function ChatBody({ repoName }) {
-  const { repoId, messages, attachedNode, close, collapse, clearChat, sendMessage, retryMessage, detach } = useChat();
+  const { repoId, messages, attachedNode, close, collapse, clearChat, sendMessage, retryMessage, detach, prefill, setPrefill } = useChat();
   const { user } = useAuth();
   const [draft, setDraft] = useState("");
   const scrollRef = useRef(null);
@@ -77,6 +77,17 @@ function ChatBody({ repoName }) {
   useEffect(() => {
     stuckRef.current = true;
   }, [repoId]);
+
+  // "Ask the engineer" links drop a question into the input without sending it
+  useEffect(() => {
+    if (!prefill) return;
+    setDraft(prefill.text);
+    setPrefill(null);
+    requestAnimationFrame(() => {
+      resizeInput();
+      inputRef.current?.focus();
+    });
+  }, [prefill]);
 
   function onScroll() {
     const el = scrollRef.current;

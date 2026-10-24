@@ -12,6 +12,7 @@ export function ChatProvider({ children }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [attachedNode, setAttachedNode] = useState(null); // { id, label, category } or null
+  const [prefill, setPrefill] = useState(null); // { text } to drop into the input; an object so repeats re-trigger
   const [threads, setThreads] = useState({}); // { [repoId]: message[] }
   // The board registers its nodes + camera here so the chat can show chips and fly to nodes
   const [diagram, setDiagram] = useState(null); // { nodes, focusNode } or null
@@ -29,6 +30,10 @@ export function ChatProvider({ children }) {
     setIsCollapsed(false);
     setAttachedNode(node);
   }, []);
+  const askAbout = useCallback((text) => {
+    open();
+    setPrefill({ text });
+  }, [open]);
   const close = useCallback(() => setIsOpen(false), []);
   const collapse = useCallback(() => setIsCollapsed(true), []);
   const expand = useCallback(() => setIsCollapsed(false), []);
@@ -97,11 +102,11 @@ export function ChatProvider({ children }) {
 
   const value = useMemo(
     () => ({
-      repoId, isOpen, isCollapsed, attachedNode, messages, diagram,
-      open, close, collapse, expand, attach, detach,
+      repoId, isOpen, isCollapsed, attachedNode, messages, diagram, prefill,
+      open, askAbout, setPrefill, close, collapse, expand, attach, detach,
       sendMessage, retryMessage, clearChat, setDiagram,
     }),
-    [repoId, isOpen, isCollapsed, attachedNode, threads, diagram, sendMessage, retryMessage, clearChat],
+    [repoId, isOpen, isCollapsed, attachedNode, threads, diagram, prefill, askAbout, sendMessage, retryMessage, clearChat],
   );
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
