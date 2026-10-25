@@ -1,4 +1,4 @@
-# Repo Architecture Diagram
+# GitStation
 
 Paste a GitHub repo link, get an AI-generated interactive architecture diagram.
 This is a minimal skeleton: the layout and a backend health check work, nothing else yet.

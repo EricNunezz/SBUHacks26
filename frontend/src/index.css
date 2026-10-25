@@ -13,7 +13,7 @@ body,
 
 /* shadcn theme tokens (neutral). Edit these to re-theme the whole UI. */
 :root {
-  --radius: 0.625rem;
+  --radius: 0.875rem; /* 14px: cards and panels. md/sm derive from it */
 
   /* Steel and Steam palette. Re-theme the light mode by editing these. */
   --paper: #F5F2EC; /* page background */
@@ -23,7 +23,15 @@ body,
   --steel-text: #5F646C; /* steel darkened so small text passes contrast (5.3:1 on paper) */
   --steel-line: #D6D3CC; /* subtle borders: steel tint on paper */
   --copper: #B87333; /* brand mark, category color */
+  --wood: #7A5230; /* station platform accents */
+  --rail-green: #1F4D3A; /* big surfaces: sidebar, canopy, panel headers */
+  --rail-green-light: #2E6B52; /* hover / secondary green */
+  --blueprint: #2B4A6F; /* code panel header */
+  --brass-bright: #E2C25A; /* brass for small text on green (4.5:1+) */
+  --brass-deep: #7F6508; /* brass for small text on cream (4.5:1+) */
+  --signal-red: #A0442C;
   --copper-deep: #A5632B; /* copper for filled buttons (white text passes 4.5:1) */
+  --rust: #A0442C; /* failed state */
   --brass: #C9A227;
   --brass-tint: #EFE5BD; /* brass for hover/secondary surfaces, keeps iron text readable */
   --grid: color-mix(in srgb, var(--steel) 22%, transparent); /* blueprint grid lines */
@@ -35,24 +43,24 @@ body,
   --popover: var(--cream);
   --popover-foreground: var(--iron);
   --primary: var(--copper-deep);
-  --primary-foreground: #FFFFFF;
+  --primary-foreground: var(--cream);
   --secondary: var(--brass-tint);
   --secondary-foreground: var(--iron);
   --muted: #ECE8DF;
   --muted-foreground: var(--steel-text);
   --accent: var(--brass-tint);
   --accent-foreground: var(--iron);
-  --destructive: #B3261E;
-  --border: var(--steel-line);
-  --input: var(--steel-line);
+  --destructive: var(--signal-red);
+  --border: var(--iron); /* every default border is now the cartoon outline */
+  --input: var(--iron);
   --ring: var(--copper);
-  --sidebar: #ECE8DF; /* a step darker than the page */
-  --sidebar-foreground: var(--iron);
-  --sidebar-primary: var(--copper-deep);
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #E1DCD0;
-  --sidebar-accent-foreground: var(--iron);
-  --sidebar-border: var(--steel-line);
+  --sidebar: var(--rail-green);
+  --sidebar-foreground: var(--cream);
+  --sidebar-primary: var(--brass);
+  --sidebar-primary-foreground: var(--iron);
+  --sidebar-accent: var(--rail-green-light); /* nav hover; the active plate is brass, see ui/sidebar.jsx */
+  --sidebar-accent-foreground: var(--cream);
+  --sidebar-border: var(--iron);
   --sidebar-ring: var(--copper);
 }
 
@@ -133,10 +141,552 @@ body,
 .react-flow {
   --xy-controls-button-background-color: var(--cream);
   --xy-controls-button-background-color-hover: var(--cream);
-  --xy-controls-button-color: var(--steel-text);
+  --xy-controls-button-color: var(--iron);
   --xy-controls-button-color-hover: var(--copper);
-  --xy-controls-button-border-color: var(--steel-line);
-  --xy-controls-box-shadow: 0 0 0 1px var(--steel);
-  --xy-edge-label-color: var(--steel-text);
+  --xy-controls-button-border-color: var(--iron);
+  --xy-controls-box-shadow: 0 0 0 2px var(--iron);
+  --xy-edge-label-color: var(--iron);
   --xy-edge-label-background-color: var(--cream);
 }
+
+/* Train-station nodes (RepoNode). --line is set inline per node to the category color.
+   Tweak here: outline = --station-edge (copper when selected), shadow = .station-body drop-shadow,
+   roof = the <svg class="station-roof"> in RepoNode + the rules below. Sizes must match utils/rails.js. */
+.station {
+  --station-edge: var(--iron); /* outline of roof, facade and platform */
+  --station-w: 3px; /* outline thickness */
+  position: relative;
+}
+/* Nodes and the station never clip the shadow / glow / spotlight */
+.react-flow__node-repo, .react-flow__node-repo > div, .station { overflow: visible; }
+.station-body {
+  position: absolute;
+  inset: 0;
+}
+/* Hover / selected: lift + drop-shadow on the whole building (roof, walls, platform), so the shadow follows its real
+   shape. No box-shadow or outline. The old offset iron copy (.station-shadow) is no longer used. */
+.station-shadow { display: none; }
+.station-body {
+  filter: drop-shadow(4px 4px 0 var(--iron));
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+.station:hover .station-body,
+.station.is-selected .station-body {
+  transform: translateY(-3px);
+  filter: drop-shadow(6px 7px 0 var(--iron));
+}
+.station.is-selected .station-body {
+  filter: drop-shadow(6px 7px 0 var(--iron)) drop-shadow(0 0 6px #C9A227);
+}
+/* Brass spotlight on the grass under the platform of the active station */
+.station::before {
+  content: "";
+  position: absolute;
+  left: -10px;
+  right: -10px;
+  bottom: -12px;
+  height: 40px;
+  border-radius: 50%;
+  background: #C9A227;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+  z-index: 0;
+}
+.station.is-selected::before { opacity: 0.7; }
+.station-roof {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  overflow: visible;
+  fill: var(--line);
+  stroke: var(--station-edge);
+  stroke-width: var(--station-w);
+  stroke-linejoin: round;
+}
+.station-facade {
+  position: absolute;
+  top: 28px;
+  left: 10px;
+  width: 240px;
+  height: 126px;
+  background: var(--cream);
+  border: var(--station-w) solid var(--station-edge);
+  border-radius: 4px 4px 0 0;
+}
+.station-windows {
+  position: absolute;
+  top: 4px;
+  left: 36px;
+  right: 36px;
+  display: flex;
+  justify-content: space-around;
+}
+.station-windows span,
+.station-window-side {
+  background: color-mix(in srgb, var(--line) 28%, #fff);
+  border: 2px solid var(--iron);
+  border-radius: 4px;
+}
+.station-windows span { width: 22px; height: 14px; }
+.station-window-side { position: absolute; right: 6px; top: 52px; width: 22px; height: 22px; }
+.station-door {
+  position: absolute;
+  left: 6px;
+  bottom: 0;
+  width: 22px;
+  height: 62px;
+  background: var(--wood);
+  border: 2px solid var(--iron);
+  border-bottom: 0;
+  border-radius: 11px 11px 0 0;
+}
+.station-sign {
+  position: absolute;
+  top: 28px;
+  left: 50%;
+  width: 180px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: #fff;
+  border: 2.5px solid var(--iron);
+  border-radius: 8px;
+  box-shadow: 2px 2px 0 var(--iron);
+}
+/* the two little hanging straps */
+.station-sign::before,
+.station-sign::after {
+  content: "";
+  position: absolute;
+  top: -7px;
+  width: 2px;
+  height: 7px;
+  background: var(--iron);
+}
+.station-sign::before { left: 16px; }
+.station-sign::after { right: 16px; }
+.station-platform {
+  position: absolute;
+  top: 150px;
+  left: 4px;
+  width: 252px;
+  height: 16px;
+  z-index: 1;
+  background: var(--steel);
+  border: var(--station-w) solid var(--station-edge);
+  border-radius: 6px;
+  box-shadow: inset 0 3px 0 var(--brass); /* yellow safety line */
+}
+/* Round station markers where the tracks connect */
+.react-flow .station-handle {
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border: 3px solid var(--iron);
+  border-radius: 50%;
+  z-index: 2;
+}
+
+/* ---------- Cartoon railway shell ----------
+   Palette + shadcn tokens are at the top of this file. Shared pieces live here:
+   .cartoon-panel (floating panels), .btn-cartoon (raw buttons), .canopy (header awning), and the
+   [data-slot] rules that give shadcn popups the same outline + hard shadow. */
+
+/* Floating panels: 3px outline, 14px corners, hard 5px shadow */
+.cartoon-panel {
+  border: 3px solid var(--iron);
+  border-radius: 14px;
+  box-shadow: 5px 5px 0 var(--iron);
+}
+
+/* Plain <button>s that aren't the shadcn Button (same look as button.jsx) */
+.btn-cartoon {
+  border: 2px solid var(--iron);
+  border-radius: 10px;
+  background: var(--cream);
+  color: var(--iron);
+  font-weight: 600;
+  box-shadow: 3px 3px 0 var(--iron);
+  transition: transform 0.08s;
+}
+.btn-cartoon:hover:not(:disabled) { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--iron); }
+.btn-cartoon:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--iron); }
+.btn-cartoon:disabled { opacity: 0.5; }
+.btn-cartoon-primary { background: var(--copper-deep); color: var(--cream); }
+
+/* shadcn popups: dialogs, menus, popovers */
+[data-slot="dialog-content"],
+[data-slot="alert-dialog-content"],
+[data-slot="sheet-content"] {
+  border: 3px solid var(--iron);
+  border-radius: 14px;
+  box-shadow: 5px 5px 0 var(--iron);
+}
+[data-slot="dropdown-menu-content"],
+[data-slot="dropdown-menu-sub-content"],
+[data-slot="popover-content"] {
+  border: 2px solid var(--iron);
+  border-radius: 12px;
+  box-shadow: 4px 4px 0 var(--iron);
+}
+
+/* Header canopy: green strip with a scalloped awning hanging off the bottom edge */
+.canopy {
+  position: relative;
+  z-index: 20;
+  background: var(--rail-green);
+  color: var(--cream);
+  border-bottom: 3px solid var(--iron);
+}
+.canopy::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 15px;
+  pointer-events: none;
+  /* two rows of half circles (cream, green) offset by half a period; iron ring around each */
+  background:
+    radial-gradient(circle at 14px 0, var(--cream) 0 11.5px, var(--iron) 11.5px 14.5px, transparent 15px) 0 0 / 56px 15px repeat-x,
+    radial-gradient(circle at 42px 0, var(--rail-green-light) 0 11.5px, var(--iron) 11.5px 14.5px, transparent 15px) 0 0 / 56px 15px repeat-x;
+}
+
+/* Ruled-paper code: one faint rule under every 20px line (matches leading-5) */
+.code-line,
+.code-gutter {
+  background-image: linear-gradient(to bottom, transparent 19px, color-mix(in srgb, var(--blueprint) 14%, transparent) 19px);
+}
+
+/* Zoom controls: cream buttons with iron outline and hard shadow so they stand out on the grass */
+.react-flow .react-flow__controls {
+  border: 2px solid var(--iron);
+  border-radius: 10px;
+  box-shadow: 3px 3px 0 var(--iron);
+  overflow: hidden;
+}
+.react-flow .react-flow__controls-button {
+  border-bottom: 2px solid var(--iron);
+}
+.react-flow .react-flow__controls-button:last-child { border-bottom: 0; }
+.react-flow .react-flow__controls-button:hover { background: var(--brass-tint); }
+
+/* ---------- Tickets (sidebar nav, repo switcher stub) ----------
+   A ticket is two stacked layers: the element itself (iron, = the outline) and ::before (cream, inset 2px).
+   Both layers are cut with CSS masks: radial-gradients that are transparent inside a circle and opaque outside,
+   intersected. Because the notch is *removed from the painted shape* rather than covered by a circle element,
+   nothing can be clipped or mis-layered, and the iron ring around each notch comes from the outer layer being
+   cut by a smaller radius (--r) than the cream layer (--r + 2px).
+   The hard shadow can't live on the masked element (the mask would clip it), so it is a drop-shadow on the
+   wrapper (.ticket-item), which follows the notched shape.
+   Variables you can tweak per ticket: --stripe / --on-stripe (colours), --r (notch radius), --hole (punch radius),
+   --nx-o / --nx-i (notch x for the outer / inner layer, 2px apart because the inner layer is inset by 2px). */
+.ticket-item { filter: drop-shadow(3px 3px 0 var(--iron)); }
+.ticket-item.is-disabled { filter: none; }
+
+.ticket {
+  --r: 7px;
+  --hole: 5px;
+  --nx-o: 15px;
+  --nx-i: 13px;
+  --hx-o: -999px; /* punch hole centre; off-screen unless boarded */
+  --hx-i: -999px;
+  --stripe-w: 10px;
+  --perf-x: 12px;
+  --perf-w: 2px;
+  --pl: 24px;
+  --pr: 28px;
+  position: relative;
+  overflow: visible !important; /* nothing inside is clipped by the button: the mask does the shaping */
+  border: 0 !important;
+  border-radius: 10px;
+  background: var(--iron) !important;
+  color: var(--iron) !important;
+  padding: 0 var(--pr) 0 var(--pl);
+  transition: transform 0.08s;
+  -webkit-mask-image:
+    radial-gradient(circle at var(--nx-o) 0, transparent var(--r), #000 calc(var(--r) + 0.7px)),
+    radial-gradient(circle at var(--nx-o) 100%, transparent var(--r), #000 calc(var(--r) + 0.7px)),
+    radial-gradient(circle at var(--hx-o) 50%, transparent var(--hole), #000 calc(var(--hole) + 0.7px));
+  -webkit-mask-composite: source-in, source-in;
+  mask-image:
+    radial-gradient(circle at var(--nx-o) 0, transparent var(--r), #000 calc(var(--r) + 0.7px)),
+    radial-gradient(circle at var(--nx-o) 100%, transparent var(--r), #000 calc(var(--r) + 0.7px)),
+    radial-gradient(circle at var(--hx-o) 50%, transparent var(--hole), #000 calc(var(--hole) + 0.7px));
+  mask-composite: intersect, intersect;
+}
+.ticket::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  z-index: 0;
+  border-radius: 8px;
+  background:
+    linear-gradient(var(--stripe, transparent), var(--stripe, transparent)) 0 0 / var(--stripe-w) 100% no-repeat,
+    repeating-linear-gradient(to bottom, var(--iron) 0 4px, transparent 4px 8px) var(--perf-x) 0 / var(--perf-w) 100% no-repeat,
+    var(--cream);
+  -webkit-mask-image:
+    radial-gradient(circle at var(--nx-i) -2px, transparent calc(var(--r) + 2px), #000 calc(var(--r) + 2.7px)),
+    radial-gradient(circle at var(--nx-i) calc(100% + 2px), transparent calc(var(--r) + 2px), #000 calc(var(--r) + 2.7px)),
+    radial-gradient(circle at var(--hx-i) 50%, transparent calc(var(--hole) + 2px), #000 calc(var(--hole) + 2.7px));
+  -webkit-mask-composite: source-in, source-in;
+  mask-image:
+    radial-gradient(circle at var(--nx-i) -2px, transparent calc(var(--r) + 2px), #000 calc(var(--r) + 2.7px)),
+    radial-gradient(circle at var(--nx-i) calc(100% + 2px), transparent calc(var(--r) + 2px), #000 calc(var(--r) + 2.7px)),
+    radial-gradient(circle at var(--hx-i) 50%, transparent calc(var(--hole) + 2px), #000 calc(var(--hole) + 2.7px));
+  mask-composite: intersect, intersect;
+}
+.ticket > *:not(.absolute) { position: relative; z-index: 1; }
+
+/* Only transform animates */
+.ticket:hover:not(:disabled) { transform: translate(-1px, -1px); }
+.ticket:active:not(:disabled) { transform: translate(2px, 2px); }
+.ticket:disabled { opacity: 0.45; }
+
+/* Route-active: the ticket is punched (hole near the right edge) and stamped */
+.ticket.is-boarded { --hx-o: calc(100% - 16px); --hx-i: calc(100% - 14px); }
+.ticket-stamp {
+  flex-shrink: 0;
+  transform: rotate(-8deg);
+  border: 2px solid var(--signal-red);
+  border-radius: 3px;
+  padding: 0 3px;
+  font-family: ui-monospace, monospace;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.08em;
+  color: var(--signal-red);
+}
+.ticket-lamp {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--iron);
+  border-radius: 50%;
+  background: #B8BBC2;
+}
+.ticket-lamp.is-on { background: #7BE0A4; }
+
+/* Repo switcher: stub on the right (notches on the perforation, no stripe) */
+.ticket-right {
+  --nx-o: calc(100% - 28px);
+  --nx-i: calc(100% - 26px);
+  --perf-x: calc(100% - 25px);
+  --stripe-w: 0px;
+  --pl: 8px;
+  --pr: 36px;
+}
+
+/* Top bar: 3 zones (left: logo + switcher, centre: nav tickets, right: lamp + badge). Zones never overlap. */
+.topbar { gap: 16px; padding-left: 16px; padding-right: 16px; }
+.topbar-left { display: flex; align-items: center; gap: 12px; flex: 0 1 auto; min-width: 0; }
+.topbar-center { display: flex; align-items: center; justify-content: center; gap: 12px; flex: 1 1 0; min-width: 0; }
+.topbar-right { display: flex; align-items: center; justify-content: flex-end; gap: 16px; flex: 0 1 auto; min-width: 0; }
+.topbar-ticket { height: 44px; }
+/* Nav tickets: equal widths, shrink together */
+.topbar-ticket-item { flex: 1 1 0; min-width: 0; max-width: 230px; }
+.topbar-ticket-item .topbar-ticket { width: 100%; }
+/* Repo switcher: capped at 240px, name truncates */
+.topbar-switcher { flex: 0 1 240px; min-width: 0; }
+.topbar .ticket-right.topbar-ticket { width: 100%; max-width: 240px; }
+.topbar-badge { max-width: 220px; min-width: 0; }
+.ticket-stamp { margin: 0 2px; }
+
+@media (max-width: 1399px) { .topbar .tk-platform { display: none; } }
+@media (max-width: 1149px) { .topbar .tk-to { display: none; } }
+
+/* Compact (< 900px): tickets become small icon-only squares in their destination colour */
+@media (max-width: 899px) {
+  .topbar { gap: 8px; padding-left: 8px; padding-right: 8px; }
+  .topbar-left, .topbar-center, .topbar-right { gap: 8px; }
+  .topbar .hide-compact { display: none !important; }
+  .topbar-ticket-item { flex: 0 0 auto; }
+  .topbar-ticket-item .topbar-ticket,
+  .topbar .topbar-ticket {
+    --r: 4px;
+    --nx-o: 9px;
+    --nx-i: 7px;
+    --stripe-w: 100%;
+    --perf-w: 0px;
+    --hole: 2.5px;
+    --pl: 0px;
+    --pr: 0px;
+    width: 40px;
+    height: 40px;
+    justify-content: center;
+    color: var(--on-stripe, var(--cream)) !important;
+  }
+  .topbar .topbar-ticket.is-boarded { --hx-o: calc(100% - 8px); --hx-i: calc(100% - 6px); }
+  .topbar .ticket-right.topbar-ticket { --nx-o: -999px; --nx-i: -999px; --stripe-w: 0px; width: 40px; color: var(--iron) !important; }
+  .topbar-switcher { flex: 0 0 auto; }
+}
+
+/* Catalog ticket cards (Nearby Trains): a taller ticket; static ones (unmapped) don't lift on hover */
+.ticket-card { --pl: 26px; --pr: 16px; padding-top: 14px; padding-bottom: 14px; }
+.ticket.ticket-static:hover:not(:disabled),
+.ticket.ticket-static:active:not(:disabled) { transform: none; }
+.ticket.ticket-clickable { cursor: pointer; }
+.ticket.ticket-clickable:focus-visible { outline: 3px solid var(--copper); outline-offset: 3px; }
+
+
+/* ---------- Home page + auth popup (railway theme) ---------- */
+
+/* The decorative board is completely inert: nothing inside reacts to the pointer */
+.home-bg .react-flow, .home-bg .react-flow * { pointer-events: none !important; cursor: default !important; }
+
+/* Ticket booth card: iron layer (outline) + cream layer (::before) are both masked with the same notches, at the
+   header / body seam (56px down). The hard shadow is a drop-shadow on the wrapper so it follows the notches. */
+.booth-wrap { filter: drop-shadow(6px 6px 0 var(--iron)); }
+.booth {
+  --seam: 56px;
+  --nr: 12px;
+  position: relative;
+  display: block;
+  background: var(--iron);
+  border-radius: 16px;
+  color: var(--iron);
+  -webkit-mask-image:
+    radial-gradient(circle at 0 var(--seam), transparent var(--nr), #000 calc(var(--nr) + 0.7px)),
+    radial-gradient(circle at 100% var(--seam), transparent var(--nr), #000 calc(var(--nr) + 0.7px));
+  -webkit-mask-composite: source-in;
+  mask-image:
+    radial-gradient(circle at 0 var(--seam), transparent var(--nr), #000 calc(var(--nr) + 0.7px)),
+    radial-gradient(circle at 100% var(--seam), transparent var(--nr), #000 calc(var(--nr) + 0.7px));
+  mask-composite: intersect;
+}
+.booth::before {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 13px;
+  background:
+    repeating-linear-gradient(to right, var(--iron) 0 8px, transparent 8px 14px) 0 calc(var(--seam) - 4px) / 100% 2px no-repeat,
+    linear-gradient(var(--rail-green), var(--rail-green)) 0 0 / 100% calc(var(--seam) - 5px) no-repeat,
+    var(--cream);
+  -webkit-mask-image:
+    radial-gradient(circle at -3px calc(var(--seam) - 3px), transparent calc(var(--nr) + 3px), #000 calc(var(--nr) + 3.7px)),
+    radial-gradient(circle at calc(100% + 3px) calc(var(--seam) - 3px), transparent calc(var(--nr) + 3px), #000 calc(var(--nr) + 3.7px));
+  -webkit-mask-composite: source-in;
+  mask-image:
+    radial-gradient(circle at -3px calc(var(--seam) - 3px), transparent calc(var(--nr) + 3px), #000 calc(var(--nr) + 3.7px)),
+    radial-gradient(circle at calc(100% + 3px) calc(var(--seam) - 3px), transparent calc(var(--nr) + 3px), #000 calc(var(--nr) + 3.7px));
+  mask-composite: intersect;
+}
+.booth > * { position: relative; z-index: 1; }
+.booth-header {
+  height: var(--seam);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 24px;
+  font-family: ui-monospace, monospace;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--cream);
+}
+.booth-body { padding: 24px 28px 28px; }
+@media (max-width: 480px) { .booth-body { padding: 20px 18px 22px; } }
+
+.booth-btn {
+  height: 52px;
+  border: 3px solid var(--iron);
+  border-radius: 12px;
+  background: var(--copper);
+  color: var(--cream);
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  box-shadow: 4px 4px 0 var(--iron);
+  transition: transform 0.08s, box-shadow 0.08s;
+  cursor: pointer;
+}
+.booth-btn:hover { transform: translate(-1px, -1px); box-shadow: 5px 5px 0 var(--iron); }
+.booth-btn:active { transform: translate(3px, 3px); box-shadow: 1px 1px 0 var(--iron); }
+.booth-btn:focus-visible { outline: 3px solid var(--brass); outline-offset: 3px; }
+
+/* Inline error, like a rubber stamp */
+.stamp-error {
+  display: inline-block;
+  border: 2px solid var(--signal-red);
+  border-radius: 4px;
+  padding: 4px 8px;
+  transform: rotate(-1deg);
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--signal-red);
+}
+
+/* Links under the card sit on little cream chips so they stay readable over the grass */
+.home-chip {
+  border: 2px solid var(--iron);
+  border-radius: 999px;
+  background: var(--cream);
+  padding: 4px 14px;
+  color: var(--iron);
+  box-shadow: 2px 2px 0 var(--iron);
+}
+
+/* Auth popup = ticket window */
+.ticket-window { background: var(--cream); }
+.ticket-window-header {
+  gap: 4px;
+  border-bottom: 3px solid var(--iron);
+  background: var(--rail-green);
+  padding: 20px 48px 16px 24px;
+  text-align: left;
+  color: var(--cream);
+}
+/* New passenger: copper header so the two modes look different at a glance */
+.ticket-window-header[data-mode="signup"] { background: var(--copper-deep); }
+.ticket-window-header [data-slot="dialog-title"] {
+  font-family: ui-monospace, monospace;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ticket-window-header [data-slot="dialog-description"] { color: color-mix(in srgb, var(--cream) 80%, transparent); }
+.ticket-window [data-slot="dialog-close"] { color: var(--cream); opacity: 1; }
+.ticket-window-body { padding: 20px 24px 24px; }
+.ticket-tab {
+  position: relative;
+  flex: 1;
+  height: 36px;
+  border: 2px solid var(--iron) !important;
+  border-radius: 8px;
+  background: var(--cream);
+  color: var(--iron);
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  box-shadow: 2px 2px 0 var(--iron);
+}
+/* Punched notches on the sides */
+.ticket-tab::before, .ticket-tab::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  margin-top: -4.5px;
+  border: 2px solid var(--iron);
+  border-radius: 50%;
+  background: var(--cream);
+}
+.ticket-tab::before { left: -6px; }
+.ticket-tab::after { right: -6px; }
+.ticket-tab[data-state="active"] { background: var(--brass-tint); transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--iron); }

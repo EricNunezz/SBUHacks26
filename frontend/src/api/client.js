@@ -15,8 +15,9 @@ export function setUnauthorizedHandler(fn) {
 }
 
 // fetch wrapper: adds the Bearer token when logged in and returns parsed JSON (null for 204)
-async function request(path, options = {}) {
-  const token = await getAccessToken();
+// `pub: true` is for public endpoints (featured repos): no token is sent and a 401 never signs anyone out
+async function request(path, { pub = false, ...options } = {}) {
+  const token = pub ? null : await getAccessToken();
   const res = await fetch(path, {
     ...options,
     headers: {
@@ -26,7 +27,7 @@ async function request(path, options = {}) {
     },
   });
 
-  if (res.status === 401) onUnauthorized?.();
+  if (res.status === 401 && !pub) onUnauthorized?.();
   if (!res.ok) {
     const body = await res.json().catch(() => null);
     throw new ApiError(body?.detail || `Request failed (${res.status})`, res.status);
@@ -65,24 +66,49 @@ export async function deleteMyRepo(repoId) {
   await request(`/api/me/repos/${repoId}`, { method: "DELETE" });
 }
 
+// One file's code for the viewer: { path, language, content, truncated, line_count }
+// `explore` reads it for a featured repo through the public route (needs GET /api/explore/{id}/file on the backend)
+export async function getRepoFile(repoId, path, explore = false) {
+  const query = `file?path=${encodeURIComponent(path)}`;
+  return explore ? request(`/api/explore/${repoId}/${query}`, { pub: true }) : request(`/api/repos/${repoId}/${query}`);
+}
+
 // Ask the AI about a repo. Only the last 10 messages are sent as history.
-// POST /api/repos/{repoId}/chat  { message, node_id, history }  ->  { content }
-// TODO: replace this mock with the real endpoint. `mockNodeIds` exists only so the
-// mock can cite real diagram ids; drop it (and the mock) when the backend is wired in.
-export async function sendChatMessage(repoId, { message, nodeId, history = [] }, mockNodeIds = []) {
-  const recent = history.slice(-10); // what the real request will send
-  console.debug("chat request (mock)", repoId, { message, node_id: nodeId, history: recent });
+// POST /api/repos/{repoId}/chat  { message, node_id, file_path, history }  ->  { content }
+export async function sendChatMessage(repoId, { message, nodeId, filePath = null, history = [] }) {
+  return request(`/api/repos/${repoId}/chat`, {
+    method: "POST",
+    body: JSON.stringify({
+      message,
+      node_id: nodeId,
+      file_path: filePath,
+      history: history.slice(-10).map(({ role, content }) => ({ role, content })),
+    }),
+  });
+}
 
-  await new Promise((resolve) => setTimeout(resolve, 1000));
+// The repo's saved thread (all nodes), oldest first: [{ id, role, content, node_id, created_at }]
+export async function getChatHistory(repoId) {
+  return request(`/api/repos/${repoId}/chat`);
+}
 
-  // Cite the attached node first, then a couple of others, so chips can be tested
-  const ids = [...new Set([nodeId, ...mockNodeIds].filter(Boolean))].slice(0, 3);
-  const ref = (i) => (ids[i] ? `[[${ids[i]}]]` : "that part of the app");
-  return {
-    content:
-      `Here's a mock answer to "${message}".\n\n` +
-      `A good place to look is ${ref(0)}, which does most of the work here. ` +
-      `It hands things off to ${ref(1)}, and ${ref(2)} sits behind both.\n\n` +
-      `Start with \`src/App.jsx\` and follow the imports. Unknown ids like [[not_a_real_node]] stay plain text.`,
-  };
+// Featured repos (public, no login): [{ id, owner, name, url, summary, featured_tags, node_count }]
+export async function getExplore() {
+  return request("/api/explore", { pub: true });
+}
+
+// One featured repo's diagram, same shape as getRepoDiagram
+export async function getExploreRepo(repoId) {
+  return request(`/api/explore/${repoId}`, { pub: true });
+}
+
+// Beginner catalog (public, no login): [{ language, entries: [{ id, name, owner, repo, url, label, description,
+// mapped, repo_id, preview: { nodes: [{ id, category }], edges: [{ source, target }] } | null }] }]
+export async function getCatalog() {
+  return request("/api/catalog", { pub: true });
+}
+
+// Map a catalog repo (login required). Resolves with { repo_id }; the repo is linked to the user. 422 if it is too big.
+export async function mapCatalogEntry(catalogId) {
+  return request(`/api/catalog/${catalogId}/map`, { method: "POST" });
 }

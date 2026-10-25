@@ -9,21 +9,18 @@ import {
   useMatch,
   useNavigate,
 } from "react-router-dom";
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
-import AppSidebar from "@/components/app-sidebar";
+import TopBar from "@/components/top-bar";
 import ChatPanel from "@/components/chat-panel";
 import DiagramBoard from "@/components/DiagramBoard.jsx";
 import HomePage from "@/pages/HomePage.jsx";
 import EmptyRepoState from "@/pages/EmptyRepoState.jsx";
 import AddRepoDialog from "@/components/add-repo-dialog";
 import StatsPage from "@/pages/StatsPage.jsx";
+import ExplorePage from "@/pages/ExplorePage.jsx";
+import AddRepoProgress from "@/pages/AddRepoProgress.jsx";
 import AuthDialog from "@/components/auth-dialog";
 import { AuthProvider, useAuth } from "@/context/AuthContext.jsx";
-import { ChatProvider, useChat } from "@/context/ChatContext.jsx";
+import { ChatProvider } from "@/context/ChatContext.jsx";
 import { getMyRepos, addMyRepo, deleteMyRepo, setUnauthorizedHandler } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,42 +42,66 @@ function repoNameFromUrl(url) {
 
 // Main app layout (sidebar + pages)
 // reposStatus is "loading" | "ready" | "error" (only logged-in users ever see loading/error)
-function Shell({ repos, newestRepoId, reposStatus, onRetry, notice, onAddRepo, onDeleteRepo, onLogout }) {
-  // Chat state is shared (sidebar, panel, node panel, board) through ChatContext
-  const chat = useChat();
-  // Add repo dialog. Lives here so the sidebar and the empty state open the same one.
+function Shell({
+  repos,
+  newestRepoId,
+  reposStatus,
+  onRetry,
+  notice,
+  adding,
+  onAddRepo,
+  onDeleteRepo,
+  onLogout,
+  onReposChanged,
+}) {
+  // Add repo dialog. Lives here so the top bar and the empty state open the same one.
   const [addRepoOpen, setAddRepoOpen] = useState(false);
 
   // The selected repo comes from the URL (/repo/:repoId and anything under it)
   const match = useMatch("/repo/:repoId/*");
   const selectedRepoId = match?.params.repoId;
   const selectedRepo = repos.find((r) => r.id === selectedRepoId);
+  // Off a repo page (e.g. on Explore), The Map / The Inspection still work: they open the last repo you viewed, else the newest
+  const lastRepoId = useRef(null);
+  if (selectedRepoId) lastRepoId.current = selectedRepoId;
+  const navRepoId = selectedRepoId ?? repos.find((r) => r.id === lastRepoId.current)?.id ?? newestRepoId;
+  const onStats = Boolean(useMatch("/repo/:repoId/stats")); // no chat on the static Stats page
+  // Featured repos: /explore (the timetable) and /explore/:repoId (a featured map)
+  const exploreRepoId = useMatch("/explore/:repoId")?.params.repoId;
+  const onExplore = Boolean(useMatch("/explore/*")); // also matches /explore itself
+  const { user } = useAuth();
+  const exploreChatMessage = !user
+    ? "Sign up to ask the conductor"
+    : repos.some((r) => r.id === exploreRepoId)
+      ? "Open this line from your repos to ask the conductor"
+      : "Add this line to your repos to ask the conductor";
 
   return (
-    // SidebarProvider holds the collapsed/expanded state
-    <SidebarProvider>
-      <AppSidebar
+    <div className="flex h-svh min-w-0 flex-col">
+      <TopBar
         repos={repos}
         selectedRepoId={selectedRepoId}
+        fallbackRepoId={navRepoId}
         onOpenAddRepo={() => setAddRepoOpen(true)}
         onDeleteRepo={onDeleteRepo}
         onLogout={onLogout}
-        chatOpen={chat.isOpen}
-        onToggleChat={() => (chat.isOpen && !chat.isCollapsed ? chat.close() : chat.open())}
+        notice={notice}
       />
-      <SidebarInset className="h-svh min-w-0">
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
-          <SidebarTrigger />
-          <span className="text-sm text-muted-foreground">
-            {selectedRepo ? selectedRepo.name : "No repo selected"}
-          </span>
-          {/* Failed add/delete message */}
-          {notice && <span className="ml-auto text-xs text-destructive">{notice}</span>}
-        </header>
         {/* Page on the left, optional chat panel on the right */}
         <div className="flex min-h-0 flex-1">
           <div className="min-w-0 flex-1">
-            {reposStatus === "loading" ? (
+            {adding ? (
+              <AddRepoProgress
+                key={adding.id}
+                name={repoNameFromUrl(adding.url)}
+                runAdd={adding.run}
+                onComplete={adding.onComplete}
+                onAddDifferent={() => {
+                  adding.onCancel();
+                  setAddRepoOpen(true);
+                }}
+              />
+            ) : reposStatus === "loading" ? (
               <div className="flex h-full items-center justify-center">
                 <Loader2 className="size-6 animate-spin text-muted-foreground" />
               </div>
@@ -92,6 +113,7 @@ function Shell({ repos, newestRepoId, reposStatus, onRetry, notice, onAddRepo, o
                 </Button>
               </div>
             ) : (
+            <div className="h-full animate-in fade-in duration-700">
             <Routes>
               {/* With repos, "/" goes to the most recent one; otherwise show the empty state */}
               <Route
@@ -107,14 +129,17 @@ function Shell({ repos, newestRepoId, reposStatus, onRetry, notice, onAddRepo, o
               {/* Placeholder: every repo shows the same board until real data is wired in */}
               <Route path="/repo/:repoId" element={<DiagramBoard />} />
               <Route path="/repo/:repoId/stats" element={<StatsPage />} />
+              <Route path="/explore" element={<ExplorePage onMapped={onReposChanged} onSignUp={onLogout} />} />
+              <Route path="/explore/:repoId" element={<DiagramBoard explore repos={repos} onAddRepo={onAddRepo} />} />
             </Routes>
+            </div>
             )}
           </div>
-          {selectedRepoId && <ChatPanel repoName={selectedRepo?.name} />}
+          {selectedRepoId && !onStats && <ChatPanel repoName={selectedRepo?.name} />}
+          {exploreRepoId && <ChatPanel repoName="Featured line" blockedMessage={exploreChatMessage} />}
         </div>
-      </SidebarInset>
       <AddRepoDialog open={addRepoOpen} onOpenChange={setAddRepoOpen} onAddRepo={onAddRepo} />
-    </SidebarProvider>
+    </div>
   );
 }
 
@@ -129,6 +154,8 @@ function Gate() {
   const [userRepos, setUserRepos] = useState([]);
   const [reposStatus, setReposStatus] = useState("loading"); // backend list: loading | ready | error
   const [notice, setNotice] = useState(""); // error from a failed add / delete
+  const [addingUrl, setAddingUrl] = useState(""); // repo being generated; shows the progress screen
+  const addId = useRef(0); // new key per add so the progress screen restarts
   const loadSeq = useRef(0); // lets a newer list fetch win over an older one
   const repos = user ? userRepos : guestRepos;
   // Backend list is newest first; the guest list is in append order (newest last)
@@ -178,10 +205,9 @@ function Gate() {
     navigate(`/repo/${repo.id}`);
   }
 
-  // Logged in: POST to the backend (generation runs inside it, 10-30s), refresh the list, open the returned repo.
+  // Logged in: show the progress screen, which POSTs to the backend (generation runs inside it).
   // `current` is the list to check for duplicates (passed in because it can be stale right after login).
-  // Throws on failure so the caller can show the message.
-  async function addRepoAsUser(url, current) {
+  function addRepoAsUser(url, current) {
     const name = repoNameFromUrl(url);
     const existing = current.find((r) => r.name.toLowerCase() === name.toLowerCase());
     if (existing) {
@@ -189,9 +215,15 @@ function Gate() {
       return;
     }
     setNotice("");
+    addId.current += 1;
+    setAddingUrl(url);
+  }
+
+  // What the progress screen runs: add, then refresh the sidebar list (a refresh failure isn't an add failure)
+  async function runAdd(url) {
     const repo = await addMyRepo(url);
-    await refreshUserRepos();
-    navigate(`/repo/${repo.id}`);
+    await refreshUserRepos().catch(() => {});
+    return repo;
   }
 
   // Remove a repo from this user's list (never the shared cached repo)
@@ -242,7 +274,7 @@ function Gate() {
     // Logged in or signed up: use the backend list (newest first), not the stale local one
     try {
       const list = await refreshUserRepos();
-      if (url) await addRepoAsUser(url, list);
+      if (url) addRepoAsUser(url, list);
       else navigate(list[0] ? `/repo/${list[0].id}` : "/"); // most recent, or empty state
     } catch (err) {
       reportError(err, "Couldn't load your repos.");
@@ -265,6 +297,7 @@ function Gate() {
     setUserRepos([]);
     setReposStatus("loading");
     setNotice("");
+    setAddingUrl("");
     setEntered(false);
     setPendingRepoUrl("");
     setLoginOpen(false);
@@ -293,7 +326,8 @@ function Gate() {
     );
   }
 
-  if (user || entered) {
+  const onExplorePath = pathname === "/explore" || pathname.startsWith("/explore/");
+  if (user || entered || onExplorePath) {
     // Already inside: sidebar's Add repo skips the popup
     return (
       <Shell
@@ -305,9 +339,22 @@ function Gate() {
           refreshUserRepos().catch(() => {});
         }}
         notice={notice}
+        adding={
+          addingUrl && {
+            id: addId.current,
+            url: addingUrl,
+            run: () => runAdd(addingUrl),
+            onComplete: (repo) => {
+              setAddingUrl("");
+              navigate(`/repo/${repo.id}`);
+            },
+            onCancel: () => setAddingUrl(""),
+          }
+        }
         onAddRepo={(url) => (user ? addRepoAsUser(url, userRepos) : addRepoAsGuest(url))}
         onDeleteRepo={deleteRepoFromList}
         onLogout={handleLogout}
+        onReposChanged={() => (user ? refreshUserRepos().catch(() => {}) : undefined)}
       />
     );
   }
@@ -317,7 +364,7 @@ function Gate() {
 
   return (
     <div className="h-svh">
-      <HomePage onAddRepo={handleHomeSubmit} onLogin={() => setLoginOpen(true)} />
+      <HomePage onAddRepo={handleHomeSubmit} onLogin={() => setLoginOpen(true)} onExplore={() => navigate("/explore")} />
       {/* Mode comes from pendingRepoUrl: set = "Save your repo", empty = "Welcome back" */}
       <AuthDialog
         open={Boolean(pendingRepoUrl) || loginOpen}

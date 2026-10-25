@@ -2,17 +2,7 @@
   "nodes": [
     {
       "id": "web",
-      "label": "Web Client",
-      "category": "frontend"
-    },
-    {
-      "id": "mobile",
-      "label": "Mobile App",
-      "category": "frontend"
-    },
-    {
-      "id": "admin",
-      "label": "Admin Dashboard",
+      "label": "Web App",
       "category": "frontend"
     },
     {
@@ -26,23 +16,8 @@
       "category": "backend"
     },
     {
-      "id": "payments",
-      "label": "Payments",
-      "category": "backend"
-    },
-    {
-      "id": "notify",
-      "label": "Notifications",
-      "category": "backend"
-    },
-    {
-      "id": "search",
-      "label": "Search Service",
-      "category": "backend"
-    },
-    {
-      "id": "worker",
-      "label": "Job Worker",
+      "id": "orders",
+      "label": "Orders Service",
       "category": "backend"
     },
     {
@@ -51,43 +26,8 @@
       "category": "database"
     },
     {
-      "id": "redis",
-      "label": "Redis Cache",
-      "category": "database"
-    },
-    {
-      "id": "index",
-      "label": "Search Index",
-      "category": "database"
-    },
-    {
-      "id": "s3",
-      "label": "S3 Storage",
-      "category": "database"
-    },
-    {
-      "id": "queue",
-      "label": "Job Queue",
-      "category": "infra"
-    },
-    {
-      "id": "ci",
-      "label": "CI/CD",
-      "category": "infra"
-    },
-    {
-      "id": "analytics",
-      "label": "Analytics",
-      "category": "infra"
-    },
-    {
       "id": "stripe",
       "label": "Stripe",
-      "category": "external"
-    },
-    {
-      "id": "email",
-      "label": "Email Provider",
       "category": "external"
     }
   ],
@@ -96,122 +36,31 @@
       "id": "web-gateway",
       "source": "web",
       "target": "gateway",
-      "animated": true
+      "label": "calls"
     },
     {
-      "id": "mobile-gateway",
-      "source": "mobile",
-      "target": "gateway"
-    },
-    {
-      "id": "admin-gateway",
-      "source": "admin",
-      "target": "gateway"
-    },
-    {
-      "id": "gateway-auth",
-      "source": "gateway",
-      "target": "auth",
-      "animated": true
-    },
-    {
-      "id": "gateway-payments",
-      "source": "gateway",
-      "target": "payments"
-    },
-    {
-      "id": "gateway-search",
-      "source": "gateway",
-      "target": "search"
-    },
-    {
-      "id": "gateway-notify",
-      "source": "gateway",
-      "target": "notify"
-    },
-    {
-      "id": "auth-pg",
-      "source": "auth",
-      "target": "pg"
-    },
-    {
-      "id": "auth-redis",
-      "source": "auth",
-      "target": "redis"
-    },
-    {
-      "id": "payments-pg",
-      "source": "payments",
-      "target": "pg"
-    },
-    {
-      "id": "payments-stripe",
-      "source": "payments",
-      "target": "stripe"
-    },
-    {
-      "id": "payments-queue",
-      "source": "payments",
-      "target": "queue",
-      "animated": true
-    },
-    {
-      "id": "notify-queue",
-      "source": "notify",
-      "target": "queue"
-    },
-    {
-      "id": "queue-worker",
-      "source": "queue",
-      "target": "worker",
-      "animated": true
-    },
-    {
-      "id": "worker-email",
-      "source": "worker",
-      "target": "email",
-      "animated": true
-    },
-    {
-      "id": "worker-pg",
-      "source": "worker",
-      "target": "pg"
-    },
-    {
-      "id": "search-index",
-      "source": "search",
-      "target": "index",
-      "animated": true
-    },
-    {
-      "id": "search-redis",
-      "source": "search",
-      "target": "redis"
-    },
-    {
-      "id": "worker-s3",
-      "source": "worker",
-      "target": "s3"
-    },
-    {
-      "id": "gateway-analytics",
-      "source": "gateway",
-      "target": "analytics"
-    },
-    {
-      "id": "admin-pg",
-      "source": "admin",
-      "target": "pg"
-    },
-    {
-      "id": "ci-gateway",
-      "source": "ci",
-      "target": "gateway"
-    },
-    {
-      "id": "web-s3",
+      "id": "web-auth",
       "source": "web",
-      "target": "s3"
+      "target": "auth",
+      "label": "signs in via"
+    },
+    {
+      "id": "gateway-orders",
+      "source": "gateway",
+      "target": "orders",
+      "label": "routes to"
+    },
+    {
+      "id": "orders-pg",
+      "source": "orders",
+      "target": "pg",
+      "label": "writes to"
+    },
+    {
+      "id": "orders-stripe",
+      "source": "orders",
+      "target": "stripe",
+      "label": "charges with"
     }
   ]
 }

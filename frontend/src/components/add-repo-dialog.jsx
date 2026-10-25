@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { isValidGithubUrl } from "@/utils/github";
+import { normalizeGithubUrl } from "@/utils/github";
 
 // Popup with a GitHub URL input. onAddRepo(url) may return a promise (generation takes 10-30s).
 // The dialog stays open while it runs, closes on success, and shows the error on failure.
@@ -22,15 +22,15 @@ export default function AddRepoDialog({ open, onOpenChange, onAddRepo }) {
   async function handleSubmit(e) {
     e.preventDefault(); // don't reload the page
     if (busy) return;
-    const trimmed = url.trim();
-    if (!isValidGithubUrl(trimmed)) {
-      setError("Enter a link like https://github.com/owner/repo");
+    const normalized = normalizeGithubUrl(url);
+    if (!normalized) {
+      setError("Paste a GitHub repo link, like https://github.com/owner/repo");
       return;
     }
     setError("");
     setBusy(true);
     try {
-      await onAddRepo(trimmed);
+      await onAddRepo(normalized);
       setUrl("");
       onOpenChange(false);
     } catch (err) {
@@ -65,6 +65,7 @@ export default function AddRepoDialog({ open, onOpenChange, onAddRepo }) {
                 setError(""); // clear the error as soon as they edit
               }}
               placeholder="https://github.com/owner/repo"
+              className="font-mono"
               disabled={busy}
               autoFocus
             />

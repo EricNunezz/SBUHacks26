@@ -1,30 +1,37 @@
 
 import dagre from "@dagrejs/dagre";
 
-export const NODE_WIDTH = 200;
-export const NODE_HEIGHT = 70;
+export const NODE_WIDTH = 260;
+export const NODE_HEIGHT = 170; // roof + facade with name sign + platform
 
-export function layoutDiagram(nodes, edges, direction = "TB"){
+// Edge labels are only cut past this many characters (full text goes in a tooltip); signs are sized to the text
+export const MAX_LABEL = 64;
+export const shortLabel = (label = "") => (label.length > MAX_LABEL ? `${label.slice(0, MAX_LABEL - 1)}…` : label);
+
+// Returns the positioned nodes (wrapped in an object so more layout info can be added later).
+export function layoutGraph(nodes, edges, direction = "LR"){
   //make the empty graph and set the direction (Top -> bottom) & spacing between nodes 
-  const g = new dagre.graphlib.Graph();
+  const g = new dagre.graphlib.Graph({ multigraph: true });
   g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: direction, nodesep: 60, ranksep: 90});
+  g.setGraph({ rankdir: direction, nodesep: 200, ranksep: 140});
 
   //tell dagre about every box and its size
   nodes.forEach((node) => {
-    g.setNode(node.id, {width: NODE_WIDTH, height: NODE_HEIGHT});
+    g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
   });
 
-  //tell dagre about every connection 
-  edges.forEach((edge) => {
-    g.setEdge(edge.source, edge.target);
+  //tell dagre about every connection; labeled edges reserve their own space between rows
+  edges.forEach((edge, i) => {
+    const text = shortLabel(edge.label);
+    const label = text ? { width: text.length * 11 + 30, height: 40, labelpos: "c" } : {};
+    g.setEdge(edge.source, edge.target, label, edge.id ?? String(i));
   });
 
   //let dagre do the math 
   dagre.layout(g);
 
   //copy dagre's poositions onto our nodes 
-  return nodes.map((node) => {
+  const laidOut = nodes.map((node) => {
     const pos = g.node(node.id);
     return{ 
       ...node, 
@@ -34,4 +41,9 @@ export function layoutDiagram(nodes, edges, direction = "TB"){
       }
     };
   });
+  return { nodes: laidOut };
+}
+
+export function layoutDiagram(nodes, edges, direction = "LR") {
+  return layoutGraph(nodes, edges, direction).nodes;
 }
