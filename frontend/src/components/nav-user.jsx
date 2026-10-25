@@ -18,14 +18,15 @@ export default function NavUser({ user, onLogout }) {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="relative flex h-11 items-center gap-2 overflow-hidden rounded-lg border-2 border-[var(--iron)] bg-[var(--cream)] px-2 text-left text-[var(--iron)] shadow-[3px_3px_0_var(--iron)] hover:-translate-x-px hover:-translate-y-px active:translate-x-0.5 active:translate-y-0.5"
+          title={label}
+          className="topbar-badge relative flex h-11 items-center gap-2 overflow-hidden rounded-lg border-2 border-[var(--iron)] bg-[var(--cream)] px-2 text-left text-[var(--iron)] shadow-[3px_3px_0_var(--iron)] hover:-translate-x-px hover:-translate-y-px active:translate-x-0.5 active:translate-y-0.5"
         >
           {/* Conductor's badge: brass clip at the top */}
           <span aria-hidden className="absolute left-1/2 top-0 h-1.5 w-8 -translate-x-1/2 rounded-b-sm border-2 border-t-0 border-[var(--iron)] bg-[var(--brass)]" />
           <Avatar className="size-7 rounded-full border-2 border-[var(--iron)]">
             <AvatarFallback className="rounded-full bg-[var(--brass)] font-bold text-[var(--iron)]">{label[0].toUpperCase()}</AvatarFallback>
           </Avatar>
-          <span className="hide-compact max-w-36 truncate text-sm font-semibold">{label}</span>
+          <span className="hide-compact min-w-0 truncate text-sm font-semibold">{label}</span>
           <ChevronsUpDown className="hide-compact size-4 shrink-0" />
         </button>
       </DropdownMenuTrigger>

@@ -68,7 +68,7 @@ function Shell({
   const onStats = Boolean(useMatch("/repo/:repoId/stats")); // no chat on the static Stats page
   // Featured repos: /explore (the timetable) and /explore/:repoId (a featured map)
   const exploreRepoId = useMatch("/explore/:repoId")?.params.repoId;
-  const onExplore = Boolean(useMatch("/explore/*") || useMatch("/explore"));
+  const onExplore = Boolean(useMatch("/explore/*")); // also matches /explore itself
   const { user } = useAuth();
   const exploreChatMessage = !user
     ? "Sign up to ask the conductor"

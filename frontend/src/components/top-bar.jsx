@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { BarChart3, Cog, Compass, Network } from "lucide-react";
+import { BarChart3, Compass, Network } from "lucide-react";
 import RepoSwitcher from "@/components/repo-switcher";
 import BackendStatus from "@/components/backend-status";
 import NavUser from "@/components/nav-user";
@@ -23,8 +23,8 @@ export default function TopBar({ repos, selectedRepoId, fallbackRepoId, onOpenAd
 
   return (
     <header className="canopy topbar flex h-16 shrink-0 items-center gap-4 px-4">
-      <div className="flex shrink-0 items-center gap-3">
-        <Cog className="size-7 shrink-0 text-[var(--brass-bright)]" aria-label="App logo" />
+      <div className="topbar-left">
+        <span className="hide-compact shrink-0 font-mono text-lg font-extrabold uppercase tracking-[0.14em] text-[var(--brass-bright)]">GitStation</span>
         <RepoSwitcher
           repos={repos}
           selectedRepoId={selectedRepoId}
@@ -33,7 +33,7 @@ export default function TopBar({ repos, selectedRepoId, fallbackRepoId, onOpenAd
         />
       </div>
 
-      <nav aria-label="Pages" className="flex min-w-0 flex-1 items-center justify-center gap-3">
+      <nav aria-label="Pages" className="topbar-center">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           // One page is "boarded" at a time: the one whose URL matches
@@ -44,10 +44,10 @@ export default function TopBar({ repos, selectedRepoId, fallbackRepoId, onOpenAd
           const disabled = !targetRepoId && !item.always;
 
           return (
-            <div key={item.title} className={`ticket-item ${disabled ? "is-disabled" : ""}`}>
+            <div key={item.title} className={`ticket-item topbar-ticket-item ${disabled ? "is-disabled" : ""}`}>
               <button
                 type="button"
-                title={item.dest}
+                title={`${item.dest} · Platform ${item.platform}`}
                 aria-label={item.dest}
                 aria-current={routeActive ? "page" : undefined}
                 disabled={disabled}
@@ -58,11 +58,11 @@ export default function TopBar({ repos, selectedRepoId, fallbackRepoId, onOpenAd
                 <Icon className="size-4 shrink-0" />
                 <span className="hide-compact flex min-w-0 flex-1 flex-col gap-0.5 leading-none">
                   <span className="flex items-center justify-between gap-2 font-mono text-[8px] font-bold uppercase tracking-wider">
-                    <span>To:</span>
-                    <span>Platform {item.platform}</span>
+                    <span className="tk-to">To:</span>
+                    <span className="tk-platform ml-auto">Platform {item.platform}</span>
                   </span>
                   <span className="flex items-center justify-between gap-1">
-                    <span className="truncate text-[12px] font-extrabold uppercase">{item.dest}</span>
+                    <span className="min-w-0 truncate text-[12px] font-extrabold uppercase">{item.dest}</span>
                     {routeActive && <span className="ticket-stamp">BOARDED</span>}
                   </span>
                 </span>
@@ -72,7 +72,7 @@ export default function TopBar({ repos, selectedRepoId, fallbackRepoId, onOpenAd
         })}
       </nav>
 
-      <div className="flex shrink-0 items-center gap-3">
+      <div className="topbar-right">
         {/* Failed add/delete message */}
         {notice && (
           <span className="max-w-48 truncate rounded-md border-2 border-[var(--iron)] bg-[var(--signal-red)] px-2 py-0.5 text-xs font-semibold text-[var(--cream)]" title={notice}>

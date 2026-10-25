@@ -146,9 +146,23 @@ def diagram_preview(diagram: dict) -> dict:
     }
 
 
+# Shown first on the Explore page, in this order; every other language follows A to Z, "Other" last
+POPULAR_LANGUAGES = [
+    "JavaScript", "Python", "Java", "TypeScript", "C#", "C++", "PHP", "C", "Go", "Rust", "Ruby", "Swift", "Kotlin",
+]
+
+
+def language_order(language: str):
+    popular = {name.casefold(): i for i, name in enumerate(POPULAR_LANGUAGES)}
+    key = language.casefold()
+    if key in popular:
+        return (0, popular[key], "")
+    return (2, 0, "") if key == "other" else (1, 0, key)
+
+
 @app.get("/api/catalog")
 def get_catalog():
-    """Beginner-friendly repos grouped by language (A to Z). Mapped entries (a diagram exists) come first, then by name."""
+    """Beginner-friendly repos grouped by language (popular languages first, then A to Z). Mapped entries (a diagram exists) come first, then by name."""
     groups: dict[str, list] = {}
     for row in db.list_catalog():
         diagram = (row.get("repos") or {}).get("diagram")
@@ -167,7 +181,7 @@ def get_catalog():
         })
     return [
         {"language": language, "entries": sorted(entries, key=lambda e: (not e["mapped"], e["name"].casefold()))}
-        for language, entries in sorted(groups.items(), key=lambda kv: kv[0].casefold())
+        for language, entries in sorted(groups.items(), key=lambda kv: language_order(kv[0]))
     ]
 
 

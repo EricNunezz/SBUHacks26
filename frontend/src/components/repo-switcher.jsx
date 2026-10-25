@@ -37,10 +37,10 @@ export default function RepoSwitcher({ repos, selectedRepoId, onOpenAddRepo, onD
 
   return (
     <>
-      <div className="ticket-item">
+      <div className="ticket-item topbar-switcher">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button type="button" className="ticket ticket-right topbar-ticket flex items-center gap-2">
+            <button type="button" title={selected?.name ?? "Select a repo"} className="ticket ticket-right topbar-ticket flex items-center gap-2">
               <div className="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg border-2 border-[var(--iron)] bg-[var(--brass)] text-[var(--iron)]">
                 <GitBranch className="size-4" />
               </div>

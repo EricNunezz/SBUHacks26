@@ -24,10 +24,9 @@ export default function BackendStatus() {
   }[status];
 
   return (
-    <div title={text} className="flex items-center gap-2 text-xs font-medium text-[var(--cream)]">
+    <div title={text} aria-label={text} role="status" className="flex items-center gap-2 text-xs font-medium text-[var(--cream)]">
       {/* signal lamp: iron-outlined circle */}
       <span className={`inline-block size-4 shrink-0 rounded-full border-2 border-[var(--iron)] ${dotColor}`} />
-      <span className="hide-compact whitespace-nowrap">{text}</span>
     </div>
   );
 }

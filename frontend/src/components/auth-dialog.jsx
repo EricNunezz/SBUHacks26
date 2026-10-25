@@ -5,7 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,7 @@ function AuthForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
+    <form onSubmit={handleSubmit} className="space-y-3 pt-4">
       <Input
         type="email"
         placeholder="Email"
@@ -55,7 +55,7 @@ function AuthForm({
         required
       />
       {passwordHint && <p className="text-xs text-muted-foreground">{passwordHint}</p>}
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p role="alert" className="stamp-error">{error}</p>}
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? "Please wait..." : submitLabel}
       </Button>
@@ -69,22 +69,35 @@ function AuthForm({
 // All paths end in onContinue().
 export default function AuthDialog({ open, hasPendingRepo, onCancel, onContinue }) {
   const { signIn, signUp } = useAuth();
+  const [mode, setMode] = useState("login"); // "login" | "signup": the header and the form follow the tab
+
+  useEffect(() => {
+    if (!open) setMode("login"); // each time the popup opens it starts on Log in
+  }, [open]);
+
+  const copy = {
+    login: {
+      title: hasPendingRepo ? "Show your ticket" : "Welcome back, traveler",
+      text: hasPendingRepo ? "Log in to save your repo and board." : "Log in to pick up where you left off.",
+    },
+    signup: {
+      title: hasPendingRepo ? "Save your ticket" : "New passenger",
+      text: hasPendingRepo ? "Create an account to keep your repo and board." : "Create an account to start mapping repos.",
+    },
+  }[mode];
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onCancel()}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>{hasPendingRepo ? "Save your repo" : "Welcome back"}</DialogTitle>
-          <DialogDescription>
-            {hasPendingRepo
-              ? "Log in or create an account to continue."
-              : "Log in to pick up where you left off."}
-          </DialogDescription>
+      <DialogContent className="ticket-window gap-0 overflow-hidden p-0 sm:max-w-sm">
+        <DialogHeader className="ticket-window-header" data-mode={mode}>
+          <DialogTitle>{copy.title}</DialogTitle>
+          <DialogDescription>{copy.text}</DialogDescription>
         </DialogHeader>
-        <Tabs defaultValue="login">
-          <TabsList className="w-full">
-            <TabsTrigger value="login">Log in</TabsTrigger>
-            <TabsTrigger value="signup">Create account</TabsTrigger>
+        <div className="ticket-window-body">
+        <Tabs value={mode} onValueChange={setMode}>
+          <TabsList className="h-auto w-full gap-3 bg-transparent p-0">
+            <TabsTrigger value="login" className="ticket-tab">Log in</TabsTrigger>
+            <TabsTrigger value="signup" className="ticket-tab">New passenger</TabsTrigger>
           </TabsList>
           <TabsContent value="login">
             <AuthForm
@@ -110,12 +123,13 @@ export default function AuthDialog({ open, hasPendingRepo, onCancel, onContinue 
         {/* Demo/testing shortcut that skips auth. Needs a repo to save, so not for returning users. */}
         {hasPendingRepo && (
           <>
-            <Separator />
-            <Button variant="outline" className="w-full" onClick={() => onContinue(true)}>
-              Continue as guest
+            <Separator className="my-4 border-t-2 border-dashed border-[var(--iron)] bg-transparent" />
+            <Button variant="outline" className="w-full font-mono font-bold uppercase tracking-wider" onClick={() => onContinue(true)}>
+              Board as guest
             </Button>
           </>
         )}
+        </div>
       </DialogContent>
     </Dialog>
   );

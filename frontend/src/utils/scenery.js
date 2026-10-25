@@ -33,9 +33,9 @@ function distToSegment(x, y, a, b) {
  * every station, track, label sign and earlier decoration by the margins in theme/scenery.js.
  * Returns [{ id, kind, x, y, w, h, scale, flip }] with x/y as the top-left corner.
  */
-export function placeScenery(seedKey, stations, tracks, labelRects) {
+export function placeScenery(seedKey, stations, tracks, labelRects, overrides = {}) {
   if (!stations.length) return [];
-  const { cell, maxTotal, scale: scaleRange, outerPadding, density, clearance } = PLACEMENT;
+  const { cell, maxTotal, scale: scaleRange, outerPadding, density, clearance } = { ...PLACEMENT, ...overrides };
   const rand = rng(hash(seedKey));
 
   const rects = stations.map((n) => ({

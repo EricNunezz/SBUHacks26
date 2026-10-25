@@ -4,8 +4,8 @@ import dagre from "@dagrejs/dagre";
 export const NODE_WIDTH = 260;
 export const NODE_HEIGHT = 170; // roof + facade with name sign + platform
 
-// Edge labels are cut to this many characters (full text goes in a tooltip)
-export const MAX_LABEL = 28;
+// Edge labels are only cut past this many characters (full text goes in a tooltip); signs are sized to the text
+export const MAX_LABEL = 64;
 export const shortLabel = (label = "") => (label.length > MAX_LABEL ? `${label.slice(0, MAX_LABEL - 1)}…` : label);
 
 // Returns the positioned nodes (wrapped in an object so more layout info can be added later).

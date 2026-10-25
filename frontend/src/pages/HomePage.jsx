@@ -1,7 +1,5 @@
-import { useState } from "react";
-import { Cog } from "lucide-react";
+import { useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import HomeBackground from "@/components/HomeBackground";
 import { normalizeGithubUrl } from "@/utils/github";
 
@@ -9,9 +7,10 @@ import { normalizeGithubUrl } from "@/utils/github";
 export default function HomePage({ onAddRepo, onLogin, onExplore }) {
   const [repo, setRepo] = useState(""); // whatever the user pastes; normalized on submit
   const [error, setError] = useState("");
+  const contentRef = useRef(null); // the card + its links: the backdrop keeps clear of this
 
   function handleSubmit(e) {
-    e.preventDefault(); 
+    e.preventDefault();
     const url = normalizeGithubUrl(repo);
     if (!url) {
       setError("Paste a GitHub repo link, like https://github.com/owner/repo");
@@ -21,49 +20,68 @@ export default function HomePage({ onAddRepo, onLogin, onExplore }) {
   }
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-background">
-      <HomeBackground />
-      <div className="relative z-10 flex h-full items-center justify-center px-4 pointer-events-none">
-        {/* Card with the optional login link right below it */}
-        <div className="flex w-full max-w-md flex-col items-center gap-3">
-        <Cog className="size-10 text-copper" aria-label="App logo" />
-        <form
-          onSubmit={handleSubmit}
-          noValidate
-          className="pointer-events-auto w-full space-y-3 rounded-lg border bg-card p-4 text-card-foreground shadow-sm"
-        >
-          <p className="text-sm text-muted-foreground">Map the structure of a public GitHub repo.</p>
-          <div className="flex gap-2">
-            <Input
-              value={repo}
-              onChange={(e) => {
-                setRepo(e.target.value);
-                setError(""); // clear the error as soon as they edit
-              }}
-              placeholder="https://github.com/owner/repo"
-              autoFocus
-              className="min-w-0 flex-1 font-mono"
-            />
-            <Button type="submit">Map repo</Button>
+    <div className="relative h-full w-full overflow-hidden bg-[var(--rail-green)]">
+      <HomeBackground avoidRef={contentRef} />
+      {/* Scrolls on short screens; the card is centred otherwise */}
+      <div className="relative z-10 h-full overflow-y-auto">
+        <div className="flex min-h-full flex-col items-center justify-center px-4 py-8">
+          <div ref={contentRef} className="flex w-full max-w-md flex-col items-center gap-4">
+          <div className="rounded-lg border-[3px] border-[var(--iron)] bg-[var(--rail-green)] px-5 py-1.5 shadow-[3px_3px_0_var(--iron)]">
+            <span className="font-mono text-xl font-extrabold uppercase tracking-[0.2em] text-[var(--brass-bright)]">GitStation</span>
           </div>
-          {error && <p className="text-xs text-destructive">{error}</p>}
-        </form>
-        {onExplore && (
-          <div className="pointer-events-auto w-full space-y-2 rounded-lg border-2 border-[var(--iron)] bg-card p-4 text-center shadow-[4px_4px_0_var(--iron)]">
-            <p className="text-sm font-semibold">Don't know where to start? Board one of our featured lines</p>
-            <Button type="button" variant="outline" onClick={onExplore}>
-              See the timetable
-            </Button>
+
+          {/* The ticket booth */}
+          <div className="booth-wrap w-full max-w-md">
+            <form onSubmit={handleSubmit} noValidate className="booth">
+              <div className="booth-header">Ticket Office</div>
+              <div className="booth-body">
+                <h1 className="text-balance text-2xl font-extrabold leading-tight sm:text-3xl">Every repo is a railway.</h1>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Paste a GitHub link and we'll map its stations, tracks, and where to start.
+                </p>
+
+                <label htmlFor="destination" className="mt-6 block font-mono text-[11px] font-bold uppercase tracking-[0.2em]">
+                  Destination
+                </label>
+                <Input
+                  id="destination"
+                  value={repo}
+                  onChange={(e) => {
+                    setRepo(e.target.value);
+                    setError(""); // clear the error as soon as they edit
+                  }}
+                  placeholder="https://github.com/owner/repo"
+                  autoFocus
+                  className="mt-1.5 h-11 font-mono"
+                />
+                {error && <p role="alert" className="stamp-error mt-3">{error}</p>}
+
+                <button type="submit" className="booth-btn mt-5 w-full">
+                  Print my ticket
+                </button>
+              </div>
+            </form>
           </div>
-        )}
-        {onLogin && (
-          <p className="pointer-events-auto text-xs text-muted-foreground">
-            Already have an account?{" "}
-            <button type="button" onClick={onLogin} className="underline underline-offset-2 hover:text-foreground">
-              Log in
-            </button>
-          </p>
-        )}
+
+          <div className="flex flex-col items-center gap-2 text-center text-sm">
+            {onLogin && (
+              <p className="home-chip">
+                Already have a ticket?{" "}
+                <button type="button" onClick={onLogin} className="font-bold underline underline-offset-2 hover:text-[var(--copper-deep)]">
+                  Log in
+                </button>
+              </p>
+            )}
+            {onExplore && (
+              <p className="home-chip">
+                Not sure where to go?{" "}
+                <button type="button" onClick={onExplore} className="font-bold uppercase underline underline-offset-2 hover:text-[var(--copper-deep)]">
+                  See Nearby Trains
+                </button>
+              </p>
+            )}
+          </div>
+          </div>
         </div>
       </div>
     </div>
