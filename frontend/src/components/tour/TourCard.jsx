@@ -51,7 +51,11 @@ export default function TourCard({ tour, onAsk }) {
               <button className={`${btn} btn-cartoon-primary`} onClick={tour.next} disabled={busy}>
                 Next
               </button>
-              <button className={`${btn} ml-auto`} onClick={tour.end}>
+              <button className={`${btn} ml-auto flex items-center gap-1.5`} onClick={onAsk}>
+                <MessageSquare className="size-3.5" />
+                Ask the conductor
+              </button>
+              <button className={btn} onClick={tour.end}>
                 End tour
               </button>
             </>

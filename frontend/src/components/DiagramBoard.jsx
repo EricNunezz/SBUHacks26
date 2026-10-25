@@ -227,6 +227,13 @@ function Flow({ explore = false, repos = [], onAddRepo }) {
     repoId, explore, nodes, edges, flyTo, selectNode: setSelectedNode, keysEnabled: !viewing,
   });
   const tourRunning = tour.status === "running";
+  // Same attach as NodePanel's "Ask about this", plus a starter question for the current stop
+  const askAboutStop = () => {
+    const node = nodes.find((n) => n.id === tour.current?.node_id);
+    if (!node) return reveal();
+    const { label, category } = node.data;
+    askAbout(`Tell me more about ${label}. What should I read first here?`, { id: node.id, label, category });
+  };
   const canTour = ready && !isGuest; // the home page's sample board has no tour
 
   // Stations as drawn: the current stop glows and passed stops get a VISITED stamp
@@ -353,7 +360,7 @@ function Flow({ explore = false, repos = [], onAddRepo }) {
           />
         )}
       </ReactFlow>
-      {tourRunning && <TourCard tour={tour} onAsk={reveal} />}
+      {tourRunning && <TourCard tour={tour} onAsk={askAboutStop} />}
       <TourInvite
         open={inviteOpen}
         repoName={diagram ? `${diagram.owner}/${diagram.name}` : ""}
