@@ -20,7 +20,7 @@ import db
 
 log = logging.getLogger("uvicorn.error")
 
-HOUR, DAY = 3600, 86400
+MINUTE, HOUR, DAY = 60, 3600, 86400
 
 # Per-user limits: action -> [(window in seconds, max uses in that window, message when hit)].
 # Windows are rolling. To change a number, edit it here.
@@ -141,3 +141,18 @@ async def charge(user_id: str | None, action: str, request: Request) -> None:
         await asyncio.to_thread(db.record_usage, user_id, action)
     except Exception:
         log.error("couldn't record %s usage for %s", action, user_id, exc_info=True)
+
+
+def rate_limit(request: Request, key: str, rules: "list[tuple[int, int]]") -> None:
+    """Plain per-IP limiter for public endpoints that don't call Gemini. `rules` = [(window seconds, max hits)].
+    Raises 429 when any window is full; otherwise records this hit. Counted in memory, like the per-IP limits above."""
+    ip = client_ip(request)
+    hits = ip_hits[(ip, key)]
+    now = time.time()
+    while hits and hits[0] < now - DAY:
+        hits.popleft()
+    for window, maximum in rules:
+        if sum(t > now - window for t in hits) >= maximum:
+            log.warning("ip limit hit ip=%s action=%s", ip, key)
+            raise limited(IP_LIMIT_MESSAGE)
+    record_ip(ip, key)

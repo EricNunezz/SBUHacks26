@@ -648,48 +648,32 @@ body,
   text-align: left;
   color: var(--cream);
 }
-/* New passenger: copper header so the two modes look different at a glance */
-.ticket-window-header[data-mode="signup"] { background: var(--copper-deep); }
 .ticket-window-header [data-slot="dialog-title"] {
-  font-family: ui-monospace, monospace;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  line-height: 1.2;
 }
-.ticket-window-header [data-slot="dialog-description"] { color: color-mix(in srgb, var(--cream) 80%, transparent); }
+.ticket-window-header [data-slot="dialog-description"] { color: color-mix(in srgb, var(--cream) 85%, transparent); }
 .ticket-window [data-slot="dialog-close"] { color: var(--cream); opacity: 1; }
 .ticket-window-body { padding: 20px 24px 24px; }
-.ticket-tab {
-  position: relative;
-  flex: 1;
-  height: 36px;
-  border: 2px solid var(--iron) !important;
+/* Log in | Sign up segmented control */
+.auth-segment {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  overflow: hidden;
+  border: 2px solid var(--iron);
   border-radius: 8px;
+}
+.auth-segment button {
+  height: 38px;
   background: var(--cream);
   color: var(--iron);
-  font-family: ui-monospace, monospace;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  box-shadow: 2px 2px 0 var(--iron);
+  font-size: 14px;
+  font-weight: 700;
 }
-/* Punched notches on the sides */
-.ticket-tab::before, .ticket-tab::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  width: 9px;
-  height: 9px;
-  margin-top: -4.5px;
-  border: 2px solid var(--iron);
-  border-radius: 50%;
-  background: var(--cream);
-}
-.ticket-tab::before { left: -6px; }
-.ticket-tab::after { right: -6px; }
-.ticket-tab[data-state="active"] { background: var(--brass-tint); transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--iron); }
+.auth-segment button + button { border-left: 2px solid var(--iron); }
+.auth-segment button[aria-checked="true"] { background: var(--copper-deep); color: var(--cream); }
+.auth-segment button:focus-visible { outline: 3px solid var(--iron); outline-offset: -5px; }
 
 /* Grand Tour */
 .tour-stamp {
