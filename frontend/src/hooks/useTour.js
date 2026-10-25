@@ -29,11 +29,11 @@ function findTrack(edges, a, b) {
 }
 
 /**
- * The Grand Tour state machine. `nodes` / `edges` are the board's routed stations and tracks, `flyTo(node, ms)` moves
- * the camera and `selectNode(node | null)` opens / closes the NodePanel.
+ * The Grand Tour state machine. `nodes` / `edges` are the board's routed stations and tracks and `frame(nodes, ms)`
+ * moves the camera so those stations fill the visible part of the board. The tour never opens the NodePanel.
  * status: "idle" | "loading" | "running". While running: stops, index, visited (node ids), trainAt, travel, hidden.
  */
-export default function useTour({ repoId, explore, nodes, edges, flyTo, selectNode, keysEnabled }) {
+export default function useTour({ repoId, explore, nodes, edges, frame, keysEnabled }) {
   const reduced = useReducedMotion();
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState(null); // { message, limited } after a failed start
@@ -67,12 +67,10 @@ export default function useTour({ repoId, explore, nodes, edges, flyTo, selectNo
   // Switching repos, reloading the diagram or leaving the board ends the tour
   useEffect(() => reset, [repoId, nodes, reset]);
 
+  // Camera on a station and the one after it (if any), so the next leg of the line is in view
   const moveTo = useCallback(
-    (node, duration = 600) => {
-      flyTo(node, reduced ? 0 : duration);
-      selectNode(node);
-    },
-    [flyTo, selectNode, reduced],
+    (node, following, duration = 600) => frame([node, following].filter(Boolean), reduced ? 0 : duration),
+    [frame, reduced],
   );
 
   const start = useCallback(async () => {
@@ -98,7 +96,7 @@ export default function useTour({ repoId, explore, nodes, edges, flyTo, selectNo
       setMaxIndex(0);
       setTrainAt(list[0].node_id);
       setStatus("running");
-      moveTo(nodeById.get(list[0].node_id));
+      moveTo(nodeById.get(list[0].node_id), nodeById.get(list[1]?.node_id));
     } catch (err) {
       if (id !== requestId.current) return;
       setStatus("idle");
@@ -116,29 +114,30 @@ export default function useTour({ repoId, explore, nodes, edges, flyTo, selectNo
       if (status !== "running" || busy || to < 0 || to >= stops.length || to === index) return;
       const prev = nodeById.get(stops[index].node_id);
       const next = nodeById.get(stops[to].node_id);
+      const following = nodeById.get(stops[to + 1]?.node_id);
       setIndex(to);
       setMaxIndex((m) => Math.max(m, to));
 
       const track = reduced ? null : findTrack(edges, prev.id, next.id);
       const d = track && railPaths.get(track.edge.id);
       if (d) {
-        // Direct track: the train runs along it while the camera follows; the panel opens on arrival
+        // Direct track: the train runs along it. The camera holds both ends so the train is in view the whole way,
+        // then settles on the new stop and the one after it (see arrive)
         const distance = Math.hypot(next.position.x - prev.position.x, next.position.y - prev.position.y);
         const duration = Math.min(2600, Math.max(1200, distance * 2.2));
         setTravel({ d, reverse: track.reverse, duration, nodeId: next.id });
-        selectNode(null);
-        flyTo(next, duration);
+        frame([prev, next], duration);
       } else if (reduced) {
         setTrainAt(next.id);
-        moveTo(next);
+        moveTo(next, following);
       } else {
         setHidden(true);
         later(FADE_MS, () => setTrainAt(next.id));
         later(FADE_MS + REAPPEAR_MS, () => setHidden(false));
-        moveTo(next);
+        moveTo(next, following);
       }
     },
-    [status, busy, stops, index, nodeById, edges, reduced, flyTo, selectNode, moveTo],
+    [status, busy, stops, index, nodeById, edges, reduced, frame, moveTo],
   );
 
   // The train reached the end of its track
@@ -147,8 +146,8 @@ export default function useTour({ repoId, explore, nodes, edges, flyTo, selectNo
     setTravel(null);
     setTrainAt(travel.nodeId);
     const node = nodeById.get(travel.nodeId);
-    if (node) selectNode(node);
-  }, [travel, nodeById, selectNode]);
+    if (node) moveTo(node, nodeById.get(stops[index + 1]?.node_id), 500);
+  }, [travel, nodeById, stops, index, moveTo]);
 
   const next = useCallback(() => go(index + 1), [go, index]);
   const back = useCallback(() => go(index - 1), [go, index]);
@@ -176,7 +175,7 @@ export default function useTour({ repoId, explore, nodes, edges, flyTo, selectNo
   return {
     status, error, stops, index, visited, trainAt, travel, hidden, busy, reduced,
     current: status === "running" ? stops[index] : null,
-    start, next, back, end: reset, arrive,
+    start, next, back, go, end: reset, arrive,
     clearError: () => setError(null),
   };
 }

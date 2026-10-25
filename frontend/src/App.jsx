@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import TrainLoader from "@/components/TrainLoader";
 import {
   Routes,
   Route,
@@ -20,7 +20,7 @@ import ExplorePage from "@/pages/ExplorePage.jsx";
 import AddRepoProgress from "@/pages/AddRepoProgress.jsx";
 import AuthDialog from "@/components/auth-dialog";
 import { AuthProvider, useAuth } from "@/context/AuthContext.jsx";
-import { ChatProvider } from "@/context/ChatContext.jsx";
+import { ChatProvider, useChat } from "@/context/ChatContext.jsx";
 import { getMyRepos, addMyRepo, deleteMyRepo, setUnauthorizedHandler } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,6 +57,16 @@ function Shell({
   // Add repo dialog. Lives here so the top bar and the empty state open the same one.
   const [addRepoOpen, setAddRepoOpen] = useState(false);
 
+  // While a new repo is being mapped the previous repo's chat makes no sense: close it and drop the attached
+  // node / file. (Each repo keeps its own thread, so the new map shows its own once it opens.)
+  const { close: closeChat, detach: detachChat } = useChat();
+  const mappingName = adding ? repoNameFromUrl(adding.url) : null;
+  useEffect(() => {
+    if (!adding) return;
+    closeChat();
+    detachChat();
+  }, [adding?.id]);
+
   // The selected repo comes from the URL (/repo/:repoId and anything under it)
   const match = useMatch("/repo/:repoId/*");
   const selectedRepoId = match?.params.repoId;
@@ -86,6 +96,7 @@ function Shell({
         onDeleteRepo={onDeleteRepo}
         onLogout={onLogout}
         notice={notice}
+        mappingName={mappingName}
       />
         {/* Page on the left, optional chat panel on the right */}
         <div className="flex min-h-0 flex-1">
@@ -103,7 +114,7 @@ function Shell({
               />
             ) : reposStatus === "loading" ? (
               <div className="flex h-full items-center justify-center">
-                <Loader2 className="size-6 animate-spin text-muted-foreground" />
+                <TrainLoader message="ALL ABOARD…" />
               </div>
             ) : reposStatus === "error" ? (
               <div className="flex h-full flex-col items-center justify-center gap-3">
@@ -135,8 +146,8 @@ function Shell({
             </div>
             )}
           </div>
-          {selectedRepoId && !onStats && <ChatPanel repoName={selectedRepo?.name} />}
-          {exploreRepoId && <ChatPanel repoName="Featured line" blockedMessage={exploreChatMessage} />}
+          {selectedRepoId && !onStats && !adding && <ChatPanel repoName={selectedRepo?.name} />}
+          {exploreRepoId && !adding && <ChatPanel repoName="Featured line" blockedMessage={exploreChatMessage} />}
         </div>
       <AddRepoDialog open={addRepoOpen} onOpenChange={setAddRepoOpen} onAddRepo={onAddRepo} />
     </div>
@@ -321,7 +332,7 @@ function Gate() {
   if (loading) {
     return (
       <div className="flex h-svh items-center justify-center">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        <TrainLoader message="ALL ABOARD…" />
       </div>
     );
   }

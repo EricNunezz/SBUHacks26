@@ -1,42 +1,16 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { ViewportPortal } from "@xyflow/react";
 import { NODE_HEIGHT, NODE_WIDTH } from "@/utils/layout";
+import TrainGraphic, { TRAIN_H, TRAIN_W } from "@/components/TrainGraphic";
 
-const WIDTH = 96;
-const HEIGHT = 58;
-const ANCHOR = { x: 48, y: 46 }; // the wheels' contact line, so the train sits on the rails
+// Drawn in flow coordinates (inside the viewport), so it pans and zooms with the stations: ~40% of a station's width.
+// TrainGraphic is 100% x 100% of its box, so the box needs an explicit size.
+const WIDTH = NODE_WIDTH * 0.4;
+const HEIGHT = (WIDTH * TRAIN_H) / TRAIN_W;
+const ANCHOR = { x: WIDTH / 2, y: (HEIGHT * 46) / TRAIN_H }; // the wheels' contact line, so the train sits on the rails
+const MAX_TILT = 25; // degrees: follow gentle curves, but stay upright on the vertical bits of a track
 
 const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
-
-// A small cartoon steam engine drawn facing right (the body is mirrored when it heads left)
-function Engine() {
-  const iron = "var(--iron)";
-  return (
-    <svg width={WIDTH} height={HEIGHT} viewBox="0 0 96 58" fill="none" strokeLinejoin="round" strokeLinecap="round">
-      {/* smoke puffs */}
-      <circle className="tour-smoke" cx="24" cy="9" r="5" fill="#fff" stroke={iron} strokeWidth="2" />
-      <circle className="tour-smoke tour-smoke-2" cx="24" cy="9" r="4" fill="#fff" stroke={iron} strokeWidth="2" />
-      {/* chimney and boiler */}
-      <path d="M20 22 V14 H30 V22" fill={iron} stroke={iron} strokeWidth="2" />
-      <rect x="10" y="22" width="52" height="18" rx="7" fill="#B87333" stroke={iron} strokeWidth="2.5" />
-      <rect x="30" y="17" width="8" height="6" rx="3" fill="#E2C25A" stroke={iron} strokeWidth="2" />
-      {/* cab */}
-      <rect x="56" y="12" width="30" height="30" rx="4" fill="#C0432B" stroke={iron} strokeWidth="2.5" />
-      <rect x="53" y="8" width="36" height="6" rx="2" fill={iron} />
-      <rect x="62" y="18" width="16" height="12" rx="2" fill="#A9D4EE" stroke={iron} strokeWidth="2" />
-      {/* cowcatcher and coupling */}
-      <path d="M10 40 L3 46 H16 Z" fill="#E2C25A" stroke={iron} strokeWidth="2" />
-      <line x1="86" y1="38" x2="94" y2="38" stroke={iron} strokeWidth="3" />
-      {/* wheels */}
-      {[22, 40, 74].map((cx) => (
-        <g key={cx}>
-          <circle cx={cx} cy="42" r="6" fill="#16171A" stroke={iron} strokeWidth="2" />
-          <circle cx={cx} cy="42" r="1.8" fill="#8A8F98" />
-        </g>
-      ))}
-    </svg>
-  );
-}
 
 /**
  * The tour train. Parked, it sits on the platform of the station `at` (a routed node). While `travel` is set it runs
@@ -50,6 +24,12 @@ export default function TourTrain({ at, travel, hidden, onArrive }) {
   const arriveRef = useRef(onArrive);
   arriveRef.current = onArrive;
   const placed = useRef(false);
+  const lastAt = useRef(null); // station the train was last parked at (to face the next one when it jumps)
+  // Nose direction (left / right) plus a tilt to the track's tangent, in degrees. With the mirrored picture the
+  // forward vector points at 180 degrees, so the rotation is measured from there.
+  const face = (left, tilt = 0) => {
+    if (bodyRef.current) bodyRef.current.style.transform = `rotate(${tilt}deg) scaleX(${left ? -1 : 1})`;
+  };
 
   const place = (x, y) => {
     wrapRef.current.style.transform = `translate(${x - ANCHOR.x}px, ${y - ANCHOR.y}px)`;
@@ -61,6 +41,9 @@ export default function TourTrain({ at, travel, hidden, onArrive }) {
     const el = wrapRef.current;
     el.style.transition = placed.current && !hidden ? "transform 0.35s ease-in-out, opacity 0.25s" : "opacity 0.25s";
     place(at.position.x + NODE_WIDTH / 2, at.position.y + NODE_HEIGHT - 4);
+    // No track between the stops: nose toward the station it is going to
+    if (lastAt.current && lastAt.current !== at) face(at.position.x < lastAt.current.position.x, 0);
+    lastAt.current = at;
     placed.current = true;
   }, [at, travel, hidden]);
 
@@ -72,17 +55,42 @@ export default function TourTrain({ at, travel, hidden, onArrive }) {
     wrapRef.current.style.transition = "opacity 0.25s";
     let raf;
     let startedAt = null;
-    let lastX = null;
+    let lastLeft = false;
+    // Which way the nose should point at `along`: toward where the train is heading. On a vertical stretch of track
+    // look further ahead for the next sideways bit; null = keep the current facing.
+    const dir = travel.reverse ? -1 : 1;
+    const facingLeft = (along) => {
+      const here = path.getPointAtLength(along);
+      for (const look of [8, 24, 60, 120, length]) {
+        const ahead = path.getPointAtLength(Math.min(length, Math.max(0, along + dir * look)));
+        if (Math.abs(ahead.x - here.x) > 2) return ahead.x < here.x;
+      }
+      return null;
+    };
+    // Tilt to follow the track: the angle of the direction of travel, relative to the nose, clamped
+    const tiltAt = (along, left) => {
+      const a = path.getPointAtLength(Math.max(0, Math.min(length, along - dir * 4)));
+      const b = path.getPointAtLength(Math.max(0, Math.min(length, along + dir * 4)));
+      let deg = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI; // direction of travel
+      if (left) deg -= deg > 0 ? 180 : -180; // measured from the leftward nose
+      return Math.max(-MAX_TILT, Math.min(MAX_TILT, deg));
+    };
+    // Point the nose the right way before the first frame, so it never starts out facing backwards
+    const startAlong = travel.reverse ? length : 0;
+    const start = facingLeft(startAlong);
+    if (start !== null) {
+      lastLeft = start;
+      face(start, tiltAt(startAlong, start));
+    }
     const tick = (now) => {
       startedAt ??= now;
       const t = Math.min(1, (now - startedAt) / travel.duration);
       const along = travel.reverse ? (1 - ease(t)) * length : ease(t) * length;
       const p = path.getPointAtLength(along);
       place(p.x, p.y);
-      if (lastX !== null && Math.abs(p.x - lastX) > 0.4) {
-        bodyRef.current.style.transform = p.x < lastX ? "scaleX(-1)" : "scaleX(1)";
-      }
-      lastX = p.x;
+      const left = facingLeft(along);
+      if (left !== null) lastLeft = left;
+      face(lastLeft, tiltAt(along, lastLeft));
       if (t < 1) raf = requestAnimationFrame(tick);
       else arriveRef.current();
     };
@@ -95,10 +103,10 @@ export default function TourTrain({ at, travel, hidden, onArrive }) {
       <div
         ref={wrapRef}
         aria-hidden
-        style={{ position: "absolute", left: 0, top: 0, zIndex: 30, pointerEvents: "none", opacity: hidden ? 0 : 1 }}
+        style={{ position: "absolute", left: 0, top: 0, width: WIDTH, height: HEIGHT, zIndex: 30, pointerEvents: "none", opacity: hidden ? 0 : 1 }}
       >
-        <div ref={bodyRef} style={{ transformOrigin: "50% 50%" }}>
-          <Engine />
+        <div ref={bodyRef} style={{ width: "100%", height: "100%", transformOrigin: "50% 50%", transition: "transform 0.15s linear" }}>
+          <TrainGraphic className={travel ? "" : "train-still"} />
         </div>
       </div>
       {travel && (

@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Cog } from "lucide-react";
+import TrainLoader from "@/components/TrainLoader";
 import {
   Dialog,
   DialogContent,
@@ -69,12 +69,17 @@ export default function AddRepoDialog({ open, onOpenChange, onAddRepo }) {
               disabled={busy}
               autoFocus
             />
-            {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
+            {error && (
+              <p role="alert" className="signal-error mt-2 text-xs font-semibold text-destructive">
+                <span className="signal-light" aria-hidden="true" />
+                {error}
+              </p>
+            )}
           </div>
           {busy && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Cog className="size-4 shrink-0 animate-spin" />
-              <span>Mapping your repo... this can take up to 30 seconds</span>
+            <div className="flex flex-col items-center gap-1 text-center text-sm text-muted-foreground">
+              <TrainLoader size="sm" message="MAPPING YOUR REPO…" />
+              <span>This can take up to 30 seconds</span>
             </div>
           )}
           <Button type="submit" className="w-full" disabled={busy}>

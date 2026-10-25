@@ -1,4 +1,4 @@
-import { Check, X } from "lucide-react";
+import { TrainFront } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RUNNING_MAX_DAYS, IDLING_MAX_DAYS } from "@/lib/statsReadings";
 
@@ -26,19 +26,25 @@ const BANDS = [
 ];
 const pct = (d) => `${(Math.min(d, MAX_DAYS) / MAX_DAYS) * 100}%`;
 
+// Verdict as a tilted rubber stamp in its tone colour
+export function Stamp({ tone, children, className = "" }) {
+  return <span className={`stamp stamp-${tone ?? "plain"} ${className}`}>{children}</span>;
+}
+
+// A little track with a train marker at days-since-push (0..365). The coloured bands are the RUNNING/IDLING/COLD zones.
 export function LinearGauge({ days }) {
   return (
     <div className="pt-3">
-      <div className="relative h-4">
-        <div className="flex h-full">
+      <div className="relative pb-1 pt-5">
+        <div className="absolute top-0 z-10 -translate-x-1/2" style={{ left: pct(days) }} title={`${days} days`}>
+          <TrainFront className="size-5 rounded-sm border-2 border-[#2B2D31] bg-[#FBF9F5] p-px" strokeWidth={2.5} />
+        </div>
+        <div className="gauge-track" />
+        <div className="mt-1.5 flex h-2 border-2 border-[#2B2D31]">
           {BANDS.map((b) => (
-            <div key={b.label} style={{ width: `${((b.to - b.from) / MAX_DAYS) * 100}%`, backgroundColor: TONES[b.tone], opacity: 0.55 }} />
+            <div key={b.label} style={{ width: `${((b.to - b.from) / MAX_DAYS) * 100}%`, backgroundColor: TONES[b.tone] }} />
           ))}
         </div>
-        {Array.from({ length: 13 }, (_, i) => i * 30).map((d) => (
-          <div key={d} className="absolute bottom-0 h-1.5 w-px bg-[#2B2D31]" style={{ left: pct(d) }} />
-        ))}
-        <div className="absolute -top-2 -bottom-2 w-0.5 bg-[#2B2D31]" style={{ left: pct(days) }} title={`${days} days`} />
       </div>
       <div className="relative mt-1 h-4 font-mono text-[10px]" style={{ color: MUTED }}>
         {[0, 90, 180, 270, 365].map((d, i) => (
@@ -48,7 +54,7 @@ export function LinearGauge({ days }) {
       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px]" style={{ color: MUTED }}>
         {BANDS.map((b) => (
           <span key={b.label} className="flex items-center gap-1">
-            <span className="inline-block size-2" style={{ backgroundColor: TONES[b.tone] }} />
+            <span className="inline-block size-2 border border-[#2B2D31]" style={{ backgroundColor: TONES[b.tone] }} />
             {b.label} {b.from}–{b.to}d
           </span>
         ))}
@@ -57,55 +63,65 @@ export function LinearGauge({ days }) {
   );
 }
 
+// Boarding-pass row: a punched hole (passed) or an unpunched dashed circle (missing)
 export function ChecklistRow({ label, ok, detail }) {
-  const Icon = ok ? Check : X;
   return (
-    <div className="flex items-center gap-2 py-1.5 font-mono text-sm" style={{ borderBottom: `1px solid ${RULE}` }}>
-      <Icon className="size-4 shrink-0" style={{ color: ok ? TONES.good : TONES.bad }} />
-      <span>{label}</span>
-      <span className="ml-auto" style={{ color: MUTED }}>{detail}</span>
+    <div className="flex items-center gap-3 py-2 font-mono text-sm" style={{ borderBottom: `2px dashed ${RULE}` }}>
+      {ok ? (
+        <span className="size-5 shrink-0 rounded-full border-2 border-[#2B2D31] bg-[#7BB86F]" role="img" aria-label="Passed" />
+      ) : (
+        <span className="size-5 shrink-0 rounded-full border-2 border-dashed border-[#A0442C]" role="img" aria-label="Missing" />
+      )}
+      <span className="font-bold">{label}</span>
+      <span className="ml-auto text-right" style={{ color: MUTED }}>{detail}</span>
     </div>
   );
 }
 
-export function IssueRow({ issue }) {
+// Luggage tag: rounded tag with a hole and a short string (shape from .tag in index.css)
+export function IssueRow({ issue, index = 0 }) {
   const age = daysAgo(issue.created_at);
   return (
-    <div className="space-y-1 py-2" style={{ borderBottom: `1px solid ${RULE}` }}>
-      <div className="flex gap-2 text-sm">
-        <span className="font-mono" style={{ color: MUTED }}>#{issue.number}</span>
-        <a href={issue.url} target="_blank" rel="noreferrer" className="font-medium underline-offset-2 hover:underline" style={{ color: "#B87333" }}>
-          {issue.title}
-        </a>
+    <div className="tag" style={{ transform: `rotate(${[-1, 0.8, -0.5, 1, -0.8][index % 5]}deg)` }}>
+      <div className="tag-edge">
+        <div className="tag-face space-y-1.5">
+          <div className="flex gap-2 text-sm">
+            <span className="font-mono font-bold" style={{ color: MUTED }}>#{issue.number}</span>
+            <a href={issue.url} target="_blank" rel="noreferrer" className="font-semibold underline underline-offset-2" style={{ color: "#8A4E1C" }}>
+              {issue.title}
+            </a>
+          </div>
+          {issue.labels.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {issue.labels.map((l) => (
+                <span key={l} className="-rotate-2 border-2 border-[#A0442C] px-1 font-mono text-[10px] font-bold uppercase tracking-wider text-[#A0442C]">{l}</span>
+              ))}
+            </div>
+          )}
+          <div className="font-mono text-[11px]" style={{ color: MUTED }}>
+            opened {age === 0 ? "today" : `${age} day${age === 1 ? "" : "s"} ago`} · {issue.comments} comment{issue.comments === 1 ? "" : "s"}
+          </div>
+        </div>
       </div>
-      <div className="flex flex-wrap items-center gap-2 font-mono text-[11px]" style={{ color: MUTED }}>
-        {issue.labels.map((l) => (
-          <span key={l} className="px-1.5 py-0.5" style={{ border: `1px solid ${RULE}` }}>{l}</span>
-        ))}
-        <span>opened {age === 0 ? "today" : `${age} day${age === 1 ? "" : "s"} ago`}</span>
-        <span>· {issue.comments} comment{issue.comments === 1 ? "" : "s"}</span>
-      </div>
+      <span className="tag-string" aria-hidden="true" />
     </div>
   );
 }
 
-export function LanguageBar({ languages }) {
-  const color = (l, i) => (l.name === "Other" ? LANG_COLORS[5] : LANG_COLORS[i % 5]);
+export const langColor = (l, i) => (l.name === "Other" ? LANG_COLORS[5] : LANG_COLORS[i % 5]);
+
+// Cargo line items: language, share, bytes
+export function CargoLines({ languages, format }) {
   return (
-    <div className="space-y-2">
-      <div className="flex h-4 overflow-hidden" style={{ border: `1px solid ${RULE}` }}>
-        {languages.map((l, i) => (
-          <div key={l.name} style={{ width: `${l.percent}%`, backgroundColor: color(l, i) }} title={l.name} />
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs">
-        {languages.map((l, i) => (
-          <span key={l.name} className="flex items-center gap-1.5">
-            <span className="inline-block size-2" style={{ backgroundColor: color(l, i) }} />
-            {l.name} {l.percent < 1 ? "<1" : Math.round(l.percent)}%
-          </span>
-        ))}
-      </div>
+    <div className="font-mono text-sm">
+      {languages.map((l, i) => (
+        <div key={l.name} className="flex items-center gap-2 py-1" style={{ borderBottom: `2px dashed ${RULE}` }}>
+          <span className="inline-block size-3.5 shrink-0 border-2 border-[#2B2D31]" style={{ backgroundColor: langColor(l, i) }} />
+          <span className="font-bold">{l.name}</span>
+          <span className="ml-auto tabular-nums">{l.percent < 1 ? "<1" : Math.round(l.percent)}%</span>
+          <span className="w-20 text-right tabular-nums" style={{ color: MUTED }}>{format(l.bytes)}</span>
+        </div>
+      ))}
     </div>
   );
 }
