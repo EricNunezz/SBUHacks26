@@ -10,7 +10,7 @@ backend/    FastAPI (Python)
 
 ## Setup
 
-### Backend (Python 3.10+)
+### Backend (Python 3.12)
 
 ```bash
 cd backend

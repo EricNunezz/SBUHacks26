@@ -1,5 +1,7 @@
 """FastAPI entry point. Run with: uvicorn main:app --reload --port 8000"""
 import asyncio
+import logging
+import os
 import re
 from uuid import UUID
 
@@ -16,12 +18,28 @@ from limits import charge  # noqa: E402
 from mapping import MAX_MAPPABLE_FILES, get_or_create_repo, normalize_github_url  # noqa: E402
 
 
+log = logging.getLogger("uvicorn.error")
+
+
+def parse_origins(raw: str) -> list[str]:
+    """"https://a.com/, 'https://b.com'" -> ["https://a.com", "https://b.com"]: trims spaces, quotes and trailing slashes, drops empties."""
+    origins = (o.strip().strip("\"'").strip().rstrip("/") for o in raw.split(","))
+    return [o for o in origins if o]
+
+
+# Comma-separated frontend origins allowed to call this API; any origin matching the regex is allowed too
+ALLOWED_ORIGINS = parse_origins(os.getenv("ALLOWED_ORIGINS", "http://localhost:5173"))
+ALLOWED_ORIGIN_REGEX = (os.getenv("ALLOWED_ORIGIN_REGEX") or r"https://(www\.)?gitstation\.nyc|https://.*\.vercel\.app").strip().strip("\"'")
+log.info("CORS allow_origins=%s allow_origin_regex=%s", ALLOWED_ORIGINS, ALLOWED_ORIGIN_REGEX)
+
 app = FastAPI(title="Repo Architecture Diagram API")
 
-# Allow the Vite dev server (the frontend) to call this API from the browser
+# The one CORS middleware: lets the browser frontend call this API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=ALLOWED_ORIGIN_REGEX,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["X-Usage-Limit"],

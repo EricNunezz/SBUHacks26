@@ -36,8 +36,9 @@ USER_LIMITS = {
 
 # Per-IP limit = the user limits x this, so a few people can share a network but one machine can't farm accounts
 IP_LIMIT_MULTIPLIER = int(os.getenv("IP_LIMIT_MULTIPLIER", "3"))
-# Behind a reverse proxy, set TRUST_PROXY=1 to read the client IP from X-Forwarded-For (otherwise everyone shares the proxy's IP)
-TRUST_PROXY = os.getenv("TRUST_PROXY") == "1"
+# Behind a reverse proxy the client IP comes from X-Forwarded-For (otherwise everyone shares the proxy's IP).
+# On automatically on Render (it sets RENDER=true); set TRUST_PROXY=1 on other hosts that sit behind a proxy.
+TRUST_PROXY = os.getenv("TRUST_PROXY") == "1" or os.getenv("RENDER") == "true"
 
 # Global kill switch: Gemini-backed actions allowed per UTC day, across all users
 GEMINI_DAILY_CAP = int(os.getenv("GEMINI_DAILY_CAP") or 1500)
