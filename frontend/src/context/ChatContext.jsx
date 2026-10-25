@@ -70,10 +70,10 @@ export function ChatProvider({ children }) {
       .map(({ role, content }) => ({ role, content }));
 
     // Marks the user message; skipped if the chat was cleared while we waited
-    const setStatus = (status, reply) =>
+    const setStatus = (status, reply, extra) =>
       updateThread(id, (msgs) => {
         if (!msgs.some((m) => m.id === msg.id)) return msgs;
-        const next = msgs.map((m) => (m.id === msg.id ? { ...m, status } : m));
+        const next = msgs.map((m) => (m.id === msg.id ? { ...m, status, ...extra } : m));
         return reply ? [...next, reply] : next;
       });
 
@@ -85,8 +85,10 @@ export function ChatProvider({ children }) {
         history,
       });
       setStatus("sent", { id: crypto.randomUUID(), role: "assistant", content, status: "sent" });
-    } catch {
-      setStatus("error");
+    } catch (err) {
+      // Usage limits and too-long messages say why and aren't worth retrying; anything else keeps the Retry button
+      const final = err.limited || err.status === 400;
+      setStatus("error", null, { error: final ? err.message : null, canRetry: !final });
     }
   }
 
@@ -109,7 +111,7 @@ export function ChatProvider({ children }) {
   const retryMessage = useCallback((msgId) => {
     const msg = (threadsRef.current[repoId] ?? []).find((m) => m.id === msgId);
     if (!msg) return;
-    updateThread(repoId, (msgs) => msgs.map((m) => (m.id === msgId ? { ...m, status: "sending" } : m)));
+    updateThread(repoId, (msgs) => msgs.map((m) => (m.id === msgId ? { ...m, status: "sending", error: null } : m)));
     ask(repoId, msg);
   }, [repoId]);
 

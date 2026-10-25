@@ -235,7 +235,7 @@ function FileNote({ file, repoId, explore, onAsk }) {
     setState({ status: "loading", text: "" });
     analyzeFile(repoId, file)
       .then((res) => !cancelled && setState({ status: "done", text: res.description }))
-      .catch((err) => !cancelled && setState({ status: "error", text: err.message }));
+      .catch((err) => !cancelled && setState({ status: "error", text: err.message, limited: err.limited }));
     return () => {
       cancelled = true;
     };
@@ -264,9 +264,11 @@ function FileNote({ file, repoId, explore, onAsk }) {
           {canSummarize && state.status === "error" && (
             <div className="flex items-center justify-between gap-3">
               <p className="text-destructive">{state.text || "Couldn't get a summary for this file."}</p>
-              <Button variant="outline" size="sm" onClick={() => setAttempt((n) => n + 1)}>
-                Retry
-              </Button>
+              {!state.limited && (
+                <Button variant="outline" size="sm" onClick={() => setAttempt((n) => n + 1)}>
+                  Retry
+                </Button>
+              )}
             </div>
           )}
           {canSummarize && state.status === "done" && (

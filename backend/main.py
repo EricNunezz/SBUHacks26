@@ -4,7 +4,7 @@ import re
 from uuid import UUID
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, Header, HTTPException, Response
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -12,6 +12,7 @@ from pydantic import BaseModel
 load_dotenv()
 
 import db  # noqa: E402
+from limits import charge  # noqa: E402
 from mapping import MAX_MAPPABLE_FILES, get_or_create_repo, normalize_github_url  # noqa: E402
 
 
@@ -23,6 +24,7 @@ app.add_middleware(
     allow_origins=["http://localhost:5173"],
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Usage-Limit"],
 )
 
 
@@ -69,7 +71,7 @@ def get_my_repos(user_id: str = Depends(get_current_user_id)):
 
 
 @app.post("/api/me/repos")
-async def add_my_repo(body: AddRepoBody, user_id: str = Depends(get_current_user_id)):
+async def add_my_repo(body: AddRepoBody, request: Request, user_id: str = Depends(get_current_user_id)):
     match = GITHUB_URL_REGEX.match(body.url.strip())
     if not match:
         raise HTTPException(status_code=400, detail="Expected a URL like https://github.com/owner/repo")
@@ -78,7 +80,7 @@ async def add_my_repo(body: AddRepoBody, user_id: str = Depends(get_current_user
     url = f"https://github.com/{owner}/{name}"
 
     # Cache first; placeholder rows and missing repos get generated (shared with the catalog flow)
-    repo = await get_or_create_repo(owner, name, url)
+    repo = await get_or_create_repo(owner, name, url, before_generate=lambda: charge(user_id, "map", request))
 
     await asyncio.to_thread(db.link_repo_to_user, user_id, repo["id"])
     return repo
@@ -187,7 +189,7 @@ def get_catalog():
 
 
 @app.post("/api/catalog/{catalog_id}/map")
-async def map_catalog_entry(catalog_id: UUID, user_id: str = Depends(get_current_user_id)):
+async def map_catalog_entry(catalog_id: UUID, request: Request, user_id: str = Depends(get_current_user_id)):
     """Maps a catalog repo (cache aware), links it to the catalog and to the user, and returns its repo id."""
     entry = await asyncio.to_thread(db.get_catalog_entry, str(catalog_id))
     if not entry:
@@ -198,7 +200,9 @@ async def map_catalog_entry(catalog_id: UUID, user_id: str = Depends(get_current
     owner, name, url = parsed
 
     # Too-big repos are rejected before any AI work (the size check runs right after the file tree is fetched)
-    repo = await get_or_create_repo(owner, name, url, max_files=MAX_MAPPABLE_FILES)
+    repo = await get_or_create_repo(
+        owner, name, url, max_files=MAX_MAPPABLE_FILES, before_generate=lambda: charge(user_id, "map", request)
+    )
     await asyncio.to_thread(db.set_catalog_repo, entry["url"], repo["id"])
     await asyncio.to_thread(db.link_repo_to_user, user_id, repo["id"])
     return {"repo_id": repo["id"]}

@@ -6,11 +6,12 @@ import time
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from google.genai import types
 from pydantic import BaseModel
 
 import db
+from limits import TOPIC_GUARDRAIL, charge
 from main import get_current_user_id
 from repo_analyzer import generate_with_retry
 from repo_files import FileUnavailable, allowed_file_path, fetch_file_text, get_allowed_repo
@@ -20,6 +21,8 @@ log = logging.getLogger("uvicorn.error")
 router = APIRouter(tags=["chat"])
 
 MAX_HISTORY = 10
+MAX_MESSAGE_CHARS = 1000
+MAX_HISTORY_CHARS = 2000  # per earlier turn, so a long history can't be used to stuff the prompt
 README_CHARS = 3000
 MAX_OUTPUT_TOKENS = 800
 CHAT_RETRY_DELAYS = (1,)  # one short retry on a busy primary, then the fallback
@@ -87,7 +90,7 @@ def build_system_prompt(repo: dict, nodes: list, edges: list, node_id: Optional[
     prompt = (
         f"You are an expert software engineer helping the user understand the repository "
         f"'{repo.get('owner')}/{repo.get('name')}'. Answer from the material below and say so when it doesn't cover something. "
-        f"Answer in under about 200 words unless the user asks for detail.\n\n"
+        f"Answer in under about 200 words unless the user asks for detail.\n{TOPIC_GUARDRAIL}\n\n"
         f"Project summary: {repo.get('summary') or '(none)'}\n\n"
         f"Diagram nodes. Refer to a part of the project by writing its id in double brackets, like [[id]], "
         f"and only use ids from this list:\n{node_lines or '(none)'}\n\n"
@@ -121,15 +124,21 @@ async def get_chat_thread(repo_id: UUID, user_id: str = Depends(get_current_user
 
 
 @router.post("/api/repos/{repo_id}/chat")
-async def chat_with_repo(repo_id: UUID, body: ChatRequest, user_id: str = Depends(get_current_user_id)):
+async def chat_with_repo(repo_id: UUID, body: ChatRequest, request: Request, user_id: str = Depends(get_current_user_id)):
     started = time.perf_counter()
+    if len(body.message) > MAX_MESSAGE_CHARS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"That message is too long (the limit is {MAX_MESSAGE_CHARS} characters). Try a shorter question.",
+        )
     repo = await get_allowed_repo(repo_id, user_id)
+    await charge(user_id, "chat", request)
     diagram = repo.get("diagram") or {}
     nodes, edges = diagram.get("nodes", []), diagram.get("edges", [])
 
     # Gemini wants "user" / "model", must start with a user turn; the frontend sends "ai" for replies
     turns = [
-        types.Content(role="user" if m.role == "user" else "model", parts=[types.Part(text=m.content)])
+        types.Content(role="user" if m.role == "user" else "model", parts=[types.Part(text=m.content[:MAX_HISTORY_CHARS])])
         for m in body.history[-MAX_HISTORY:]
     ]
     while turns and turns[0].role != "user":

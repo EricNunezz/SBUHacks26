@@ -3,11 +3,12 @@ import asyncio
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from google.genai import types
 from pydantic import BaseModel
 
 import db
+from limits import TOPIC_GUARDRAIL, charge
 from main import get_current_user_id
 from repo_analyzer import generate_with_retry
 from repo_files import FileUnavailable, allowed_file_path, fetch_file_text, get_allowed_repo
@@ -26,7 +27,7 @@ class FileAnalysisRequest(BaseModel):
 
 
 @router.post("/api/repos/{repo_id}/analyze-file")
-async def analyze_file(repo_id: UUID, body: FileAnalysisRequest, user_id: str = Depends(get_current_user_id)):
+async def analyze_file(repo_id: UUID, body: FileAnalysisRequest, request: Request, user_id: str = Depends(get_current_user_id)):
     """A short plain-English description of one of the repo's node files. Saved per (repo, file) and reused."""
     repo = await get_allowed_repo(repo_id, user_id)
     file_path = allowed_file_path(body.file_path, (repo.get("diagram") or {}).get("nodes", []))
@@ -49,6 +50,9 @@ async def analyze_file(repo_id: UUID, body: FileAnalysisRequest, user_id: str = 
             raise HTTPException(status_code=415, detail="Binary files can't be summarized")
         raise HTTPException(status_code=404, detail="Couldn't load that file")
 
+    # Only a real Gemini call is charged: cached descriptions and unreadable files returned above
+    await charge(user_id, "analyze-file", request)
+
     prompt = (
         f"File: {file_path} (from the {repo['owner']}/{repo['name']} repository)\n\n"
         f"{text[:FILE_MAX_CHARS]}\n\n"
@@ -56,6 +60,7 @@ async def analyze_file(repo_id: UUID, body: FileAnalysisRequest, user_id: str = 
         "the codebase. Plain language, no preamble. Use markdown sparingly (a short list or `code` names are fine)."
     )
     config = types.GenerateContentConfig(
+        system_instruction=f"You write short file summaries for the {repo['owner']}/{repo['name']} repository. {TOPIC_GUARDRAIL}",
         temperature=0.3,
         max_output_tokens=MAX_OUTPUT_TOKENS,
         thinking_config=types.ThinkingConfig(thinking_level="MINIMAL"),

@@ -286,3 +286,30 @@ def save_file_description(repo_id, file_path, description):
         {"repo_id": repo_id, "file_path": file_path, "description": description},
         on_conflict="repo_id,file_path",
     ).execute()
+
+
+# --- Usage (rate limits; see limits.py and scripts/usage_schema.sql) ---
+# usage(user_id, action, created_at). These raise if the table is missing; limits.py handles that.
+
+def record_usage(user_id, action):
+    supabase.table("usage").insert({"user_id": user_id, "action": action}).execute()
+
+
+def count_usage(user_id, action, since_iso):
+    """How many times this user did `action` since the given ISO timestamp."""
+    result = (
+        supabase.table("usage")
+        .select("created_at", count="exact")
+        .eq("user_id", user_id)
+        .eq("action", action)
+        .gte("created_at", since_iso)
+        .limit(1)
+        .execute()
+    )
+    return result.count or 0
+
+
+def count_usage_since(since_iso):
+    """All charged actions, from every user, since the given ISO timestamp."""
+    result = supabase.table("usage").select("created_at", count="exact").gte("created_at", since_iso).limit(1).execute()
+    return result.count or 0

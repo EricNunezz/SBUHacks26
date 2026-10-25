@@ -18,11 +18,13 @@ export default function AddRepoProgress({ name, runAdd, onComplete, onAddDiffere
   const { progress, slow, start, finish, stop } = useEstimatedProgress();
   const [attempt, setAttempt] = useState(0);
   const [error, setError] = useState("");
+  const [limited, setLimited] = useState(false); // a usage limit or the daily kill switch: "Try again" would just repeat it
   const inFlight = useRef({ attempt: -1, promise: null }); // StrictMode runs effects twice; send one request
 
   useEffect(() => {
     let live = true;
     setError("");
+    setLimited(false);
     start();
 
     if (inFlight.current.attempt !== attempt) {
@@ -38,6 +40,7 @@ export default function AddRepoProgress({ name, runAdd, onComplete, onAddDiffere
         if (!live) return;
         stop();
         setError(err.message || "Couldn't add that repo.");
+        setLimited(Boolean(err.limited));
       }
     );
 
@@ -60,7 +63,7 @@ export default function AddRepoProgress({ name, runAdd, onComplete, onAddDiffere
             {error}
           </p>
           <div className="flex gap-2">
-            <Button onClick={() => setAttempt((n) => n + 1)}>Try again</Button>
+            {!limited && <Button onClick={() => setAttempt((n) => n + 1)}>Try again</Button>}
             {onAddDifferent && (
               <Button variant="outline" onClick={onAddDifferent}>
                 {differentLabel}

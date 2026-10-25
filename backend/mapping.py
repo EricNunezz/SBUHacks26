@@ -21,16 +21,17 @@ def normalize_github_url(url: str):
     return owner, name, f"https://github.com/{owner}/{name}"
 
 
-async def get_or_create_repo(owner: str, name: str, url: str, max_files: int | None = None) -> dict:
+async def get_or_create_repo(owner: str, name: str, url: str, max_files: int | None = None, before_generate=None) -> dict:
     """The repos row for this url. Uses the cache when it already has a diagram; otherwise generates one
-    (raises HTTPException on failure, 422 if max_files is set and the repo is bigger)."""
+    (raises HTTPException on failure, 422 if max_files is set and the repo is bigger).
+    `before_generate` is an optional async callable passed to analyze_repo_with_gemini, so it runs only on a cache miss, after validation, right before Gemini."""
     repo = await asyncio.to_thread(db.get_repo_by_url, url)
 
     # Placeholder rows (diagram is null) get generated here too
     if repo and repo.get("diagram"):
         return repo
 
-    analyzed = await analyze_repo_with_gemini(owner, name, url, max_files=max_files)
+    analyzed = await analyze_repo_with_gemini(owner, name, url, max_files=max_files, before_generate=before_generate)
     diagram = {"nodes": analyzed["nodes"], "edges": analyzed["edges"]}
 
     if repo:

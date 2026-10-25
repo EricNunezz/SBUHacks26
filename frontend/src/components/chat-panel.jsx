@@ -38,6 +38,7 @@ function saveWidth(width) {
   } catch {}
 }
 const fileName = (path) => path.slice(path.lastIndexOf("/") + 1);
+const MAX_MESSAGE_CHARS = 1000; // matches the backend limit in routers/chat.py
 const INPUT_MAX_HEIGHT = 138; // 6 lines of text-sm leading-5 (120) + padding (16) + border (2)
 
 const STARTERS = [
@@ -365,6 +366,7 @@ function ChatBody({ repoName, blockedMessage }) {
               value={draft}
               rows={1}
               placeholder="Ask about this repo..."
+              maxLength={MAX_MESSAGE_CHARS}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={onKeyDown}
               className="block h-9 min-h-9 flex-1 resize-none overflow-y-hidden rounded-lg border-2 border-[var(--iron)] bg-[var(--cream)] px-3 py-2 text-sm leading-5 outline-none transition-[height] duration-100 ease-out focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/60"
@@ -446,7 +448,12 @@ function Message({ message, onRetry }) {
       <div className="relative min-w-0 max-w-[85%] whitespace-pre-wrap [overflow-wrap:anywhere] rounded-lg border-2 border-[var(--iron)] bg-[var(--copper-deep)] py-2 pl-3 pr-8 text-sm font-medium text-[var(--cream)] shadow-[3px_3px_0_var(--iron)] before:absolute before:inset-y-1.5 before:right-5 before:border-l-2 before:border-dashed before:border-[var(--cream)]/70 before:content-['']">
         {message.content}
       </div>
-      {message.status === "error" && (
+      {message.status === "error" && message.canRetry === false && (
+        <p role="alert" className="max-w-[85%] text-xs text-destructive">
+          {message.error}
+        </p>
+      )}
+      {message.status === "error" && message.canRetry !== false && (
         <p className="text-xs text-destructive">
           Couldn't send.{" "}
           <button onClick={onRetry} className="underline underline-offset-2">

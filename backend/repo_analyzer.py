@@ -349,9 +349,11 @@ async def generate_with_retry(
         raise HTTPException(status_code=502, detail=f"Gemini request failed: {e}")
 
 
-async def analyze_repo_with_gemini(owner: str, repo_name: str, repo_url: str, max_files: Optional[int] = None) -> dict:
+async def analyze_repo_with_gemini(owner: str, repo_name: str, repo_url: str, max_files: Optional[int] = None, before_generate=None) -> dict:
     """Scans the repo via GitHub API and uses Gemini to generate the structural JSON.
-    With max_files set, a repo whose tree GitHub truncated (or with more files than that) is rejected with a 422."""
+    With max_files set, a repo whose tree GitHub truncated (or with more files than that) is rejected with a 422.
+    `before_generate` (optional async callable) runs after the repo has passed those checks and its content is
+    fetched, right before Gemini is called; rate limits hook in here so failed validation isn't charged."""
     file_paths, branch, tree_truncated = await fetch_github_file_tree(owner, repo_name)
     if max_files is not None and (tree_truncated or len(file_paths) > max_files):
         raise HTTPException(status_code=422, detail="This line is too big to map right now")
@@ -409,6 +411,9 @@ async def analyze_repo_with_gemini(owner: str, repo_name: str, repo_url: str, ma
     )
 
     used = {}  # which model produced the answer
+
+    if before_generate:
+        await before_generate()
 
     async def run_generation():
         response, used["model"] = await generate_with_retry(prompt, config)

@@ -2,9 +2,10 @@ import { getAccessToken } from "@/context/AuthContext";
 
 // Error with the HTTP status attached, so callers can check for 401 etc.
 export class ApiError extends Error {
-  constructor(message, status) {
+  constructor(message, status, limited = false) {
     super(message);
     this.status = status;
+    this.limited = limited; // a usage limit (429) or the daily kill switch (503): retrying won't help
   }
 }
 
@@ -30,7 +31,7 @@ async function request(path, { pub = false, ...options } = {}) {
   if (res.status === 401 && !pub) onUnauthorized?.();
   if (!res.ok) {
     const body = await res.json().catch(() => null);
-    throw new ApiError(body?.detail || `Request failed (${res.status})`, res.status);
+    throw new ApiError(body?.detail || `Request failed (${res.status})`, res.status, res.headers.has("X-Usage-Limit"));
   }
   return res.status === 204 ? null : res.json();
 }
