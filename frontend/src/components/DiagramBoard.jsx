@@ -34,7 +34,7 @@ const PANEL_INSET = 416; // NodePanel: w-96 (384) + right-4 (16) + a 16px gap
 // Fit with breathing room, but never smaller than readable; a wide diagram just overflows and can be panned
 // Default view: fit the stations; never zoom out past minZoom so names stay readable
 const FIT = { padding: 0.08, minZoom: 0.5, maxZoom: 1.1 };
-const FOCUS_ZOOM = { min: 0.6, max: 1.1 };
+const FOCUS_ZOOM = { min: 0.5, max: 0.8 };
 
 
 function Centered({ children }) {

@@ -10,8 +10,8 @@ import { useAuth } from "@/context/AuthContext";
 //  - color = the ticket's stripe, on = icon colour on that stripe in the compact (icon-only) layout
 const NAV_ITEMS = [
   { title: "Diagram", icon: Network, to: (id) => `/repo/${id}`, dest: "The Map", platform: 1, color: "#B87333", on: "#FBF9F5" },
-  { title: "Stats", icon: BarChart3, to: (id) => `/repo/${id}/stats`, dest: "The Inspection", platform: 3, color: "#C9A227", on: "#2B2D31" },
-  { title: "Explore", icon: Compass, to: () => "/explore", always: true, dest: "Nearby Trains", platform: 4, color: "#A0442C", on: "#FBF9F5" },
+  { title: "Stats", icon: BarChart3, to: (id) => `/repo/${id}/stats`, dest: "The Inspection", platform: 2, color: "#C9A227", on: "#2B2D31" },
+  { title: "Explore", icon: Compass, to: () => "/explore", always: true, dest: "Nearby Trains", platform: 3, color: "#A0442C", on: "#FBF9F5" },
 ];
 
 // The canopy: logo + repo switcher (left), navigation tickets (centre), signal lamp + user badge (right).
