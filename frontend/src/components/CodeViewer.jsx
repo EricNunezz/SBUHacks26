@@ -3,7 +3,9 @@ import { Highlight } from "prism-react-renderer";
 import { ChevronRight, ExternalLink, MessageSquare } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { getRepoFile } from "@/api/client";
+import ReactMarkdown from "react-markdown";
+import { analyzeFile, getRepoFile } from "@/api/client";
+import { useAuth } from "@/context/AuthContext";
 import { getCategoryTheme } from "@/theme/categories";
 import { getThemeIcon } from "@/theme/icons";
 import useFloatingPanel from "@/hooks/useFloatingPanel";
@@ -137,6 +139,7 @@ export default function CodeViewer({ file, node, repoId, repoUrl, explore = fals
 
       {!collapsed && (
         <>
+          <FileNote file={file} repoId={repoId} explore={explore} onAsk={() => onAsk(file)} />
           <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b-2 border-[var(--iron)] bg-[var(--paper)] px-4 py-1.5 font-mono text-[11px]">
             {LEGEND.map(([key, label]) => (
               <span key={key} className="flex items-center gap-1">
@@ -214,5 +217,71 @@ export default function CodeViewer({ file, node, repoId, repoUrl, explore = fals
         </>
       )}
     </aside>
+  );
+}
+
+// "What this file does": a conductor's note above the code. Summaries are for signed-in users on their own repos;
+// the explore (public) route has no summary endpoint.
+function FileNote({ file, repoId, explore, onAsk }) {
+  const { user } = useAuth();
+  const canSummarize = !!user && !explore;
+  const [open, setOpen] = useState(true);
+  const [state, setState] = useState({ status: "loading", text: "" });
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    if (!canSummarize) return;
+    let cancelled = false;
+    setState({ status: "loading", text: "" });
+    analyzeFile(repoId, file)
+      .then((res) => !cancelled && setState({ status: "done", text: res.description }))
+      .catch((err) => !cancelled && setState({ status: "error", text: err.message }));
+    return () => {
+      cancelled = true;
+    };
+  }, [file, repoId, canSummarize, attempt]);
+
+  return (
+    <section className="shrink-0 border-b-2 border-[var(--iron)] bg-[var(--cream)] px-4 py-2">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center gap-1 text-left font-mono text-[11px] font-extrabold uppercase tracking-[0.16em] text-[var(--brass-bright)]"
+        aria-expanded={open}
+      >
+        <ChevronRight className={`size-3.5 transition-transform duration-150 ${open ? "rotate-90" : ""}`} />
+        What this file does
+      </button>
+      {open && (
+        <div className="mt-1.5 rounded border-2 border-[var(--iron)] bg-[var(--paper)] p-2.5 text-sm">
+          {!canSummarize && <p className="text-muted-foreground">Sign up to get file summaries.</p>}
+          {canSummarize && state.status === "loading" && (
+            <div className="space-y-2" aria-busy>
+              {[95, 80, 60].map((w, i) => (
+                <Skeleton key={i} className="h-3.5" style={{ width: `${w}%` }} />
+              ))}
+            </div>
+          )}
+          {canSummarize && state.status === "error" && (
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-destructive">{state.text || "Couldn't get a summary for this file."}</p>
+              <Button variant="outline" size="sm" onClick={() => setAttempt((n) => n + 1)}>
+                Retry
+              </Button>
+            </div>
+          )}
+          {canSummarize && state.status === "done" && (
+            <>
+              <div className="max-h-40 overflow-auto [&_p]:my-2 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:font-mono [&_code]:text-[0.85em]">
+                <ReactMarkdown>{state.text}</ReactMarkdown>
+              </div>
+              <Button variant="outline" size="sm" className="mt-2" onClick={onAsk}>
+                <MessageSquare className="size-3.5" />
+                Ask the conductor more
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+    </section>
   );
 }

@@ -266,3 +266,23 @@ def get_explorable_repo(repo_id):
         return repo
     linked = supabase.table("catalog").select("id").eq("repo_id", repo_id).limit(1).execute().data
     return repo if linked and repo.get("diagram") else None
+
+
+# file_descriptions(repo_id, file_path, description, created_at), unique (repo_id, file_path).
+# Both helpers raise if the table is missing; the router treats that as "no cache".
+def get_file_description(repo_id, file_path):
+    result = (
+        supabase.table("file_descriptions")
+        .select("description")
+        .eq("repo_id", repo_id)
+        .eq("file_path", file_path)
+        .execute()
+    )
+    return result.data[0]["description"] if result.data else None
+
+
+def save_file_description(repo_id, file_path, description):
+    supabase.table("file_descriptions").upsert(
+        {"repo_id": repo_id, "file_path": file_path, "description": description},
+        on_conflict="repo_id,file_path",
+    ).execute()

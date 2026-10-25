@@ -73,6 +73,15 @@ export async function getRepoFile(repoId, path, explore = false) {
   return explore ? request(`/api/explore/${repoId}/${query}`, { pub: true }) : request(`/api/repos/${repoId}/${query}`);
 }
 
+// A short AI description of one of the repo's files; saved server-side, so the second call is instant.
+// POST /api/repos/{repoId}/analyze-file  { file_path }  ->  { file_path, description, cached }
+export async function analyzeFile(repoId, filePath) {
+  return request(`/api/repos/${repoId}/analyze-file`, {
+    method: "POST",
+    body: JSON.stringify({ file_path: filePath }),
+  });
+}
+
 // Ask the AI about a repo. Only the last 10 messages are sent as history.
 // POST /api/repos/{repoId}/chat  { message, node_id, file_path, history }  ->  { content }
 export async function sendChatMessage(repoId, { message, nodeId, filePath = null, history = [] }) {
