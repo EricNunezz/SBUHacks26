@@ -176,6 +176,9 @@ function Gate() {
   const [pendingRepoUrl, setPendingRepoUrl] = useState(loadPendingRepo);
   // Returning user clicked "Log in" on the home page (no pending repo)
   const [loginOpen, setLoginOpen] = useState(false);
+  // True while the auth popup is signing someone in and showing BOARDED: the session arrives first, and without this
+  // the app would replace the home page + popup before handleContinue could add the pending repo.
+  const [holdAuth, setHoldAuth] = useState(false);
 
   // Fetch the logged-in user's list from the backend. Only the latest fetch is applied.
   async function refreshUserRepos() {
@@ -275,6 +278,7 @@ function Gate() {
     clearPendingRepo();
     setPendingRepoUrl("");
     setLoginOpen(false);
+    setHoldAuth(false);
 
     if (asGuest) {
       setEntered(true); // logged-in users get in through `user` instead
@@ -297,6 +301,7 @@ function Gate() {
     clearPendingRepo();
     setPendingRepoUrl("");
     setLoginOpen(false);
+    setHoldAuth(false);
   }
 
   // Log out: wipe everything stored, then go back to the home page
@@ -338,7 +343,7 @@ function Gate() {
   }
 
   const onExplorePath = pathname === "/explore" || pathname.startsWith("/explore/");
-  if (user || entered || onExplorePath) {
+  if ((user || entered || onExplorePath) && !holdAuth) {
     // Already inside: sidebar's Add repo skips the popup
     return (
       <Shell
@@ -382,6 +387,8 @@ function Gate() {
         hasPendingRepo={Boolean(pendingRepoUrl)}
         onCancel={handleCancel}
         onContinue={handleContinue}
+        onAuthStart={() => setHoldAuth(true)}
+        onAuthEnd={() => setHoldAuth(false)}
       />
     </div>
   );
