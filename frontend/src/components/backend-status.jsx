@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiUrl } from "@/api/client";
 
 // Top bar indicator: pings /api/health once on load and shows a signal lamp.
 export default function BackendStatus() {
@@ -6,7 +7,7 @@ export default function BackendStatus() {
   const [status, setStatus] = useState("checking");
 
   useEffect(() => {
-    fetch("/api/health")
+    fetch(apiUrl("/api/health"))
       .then((res) => res.json())
       .then((data) => setStatus(data.status === "ok" ? "connected" : "disconnected"))
       .catch(() => setStatus("disconnected"));

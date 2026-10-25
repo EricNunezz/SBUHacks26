@@ -1,5 +1,9 @@
 import { getAccessToken } from "@/context/AuthContext";
 
+// Backend origin, e.g. https://my-api.onrender.com. Empty in local dev, so calls stay relative (/api/...) and go through the Vite proxy.
+const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
+export const apiUrl = (path) => `${API_BASE}${path}`;
+
 // Error with the HTTP status attached, so callers can check for 401 etc.
 export class ApiError extends Error {
   constructor(message, status, limited = false) {
@@ -19,7 +23,7 @@ export function setUnauthorizedHandler(fn) {
 // `pub: true` is for public endpoints (featured repos): no token is sent and a 401 never signs anyone out
 async function request(path, { pub = false, ...options } = {}) {
   const token = pub ? null : await getAccessToken();
-  const res = await fetch(path, {
+  const res = await fetch(apiUrl(path), {
     ...options,
     headers: {
       ...(options.body ? { "Content-Type": "application/json" } : {}),
