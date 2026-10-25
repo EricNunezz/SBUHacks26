@@ -313,3 +313,12 @@ def count_usage_since(since_iso):
     """All charged actions, from every user, since the given ISO timestamp."""
     result = supabase.table("usage").select("created_at", count="exact").gte("created_at", since_iso).limit(1).execute()
     return result.count or 0
+
+
+def update_repo_tour(repo_id, stops):
+    """Saves the Grand Tour stops inside the repo's diagram jsonb, under "tour". Reads the diagram fresh so nodes/edges are kept as they are."""
+    repo = get_repo(repo_id)
+    diagram = (repo or {}).get("diagram")
+    if not diagram:
+        return
+    supabase.table("repos").update({"diagram": {**diagram, "tour": stops}}).eq("id", repo_id).execute()

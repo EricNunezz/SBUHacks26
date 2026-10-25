@@ -690,3 +690,36 @@ body,
 .ticket-tab::before { left: -6px; }
 .ticket-tab::after { right: -6px; }
 .ticket-tab[data-state="active"] { background: var(--brass-tint); transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--iron); }
+
+/* Grand Tour */
+.tour-stamp {
+  position: absolute;
+  top: 44px;
+  right: -10px;
+  z-index: 6;
+  padding: 1px 7px;
+  border: 3px double var(--signal-red);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--cream) 88%, transparent);
+  color: var(--signal-red);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  transform: rotate(-9deg);
+  pointer-events: none;
+  animation: tour-stamp-in 0.28s ease-out;
+}
+@keyframes tour-stamp-in {
+  from { transform: rotate(-9deg) scale(1.7); opacity: 0; }
+  to { transform: rotate(-9deg) scale(1); opacity: 1; }
+}
+.tour-smoke { animation: tour-smoke 1.6s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+.tour-smoke-2 { animation-delay: 0.8s; }
+@keyframes tour-smoke {
+  from { transform: translate(0, 0) scale(0.6); opacity: 0.9; }
+  to { transform: translate(-8px, -14px) scale(1.3); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tour-stamp, .tour-smoke { animation: none; }
+}

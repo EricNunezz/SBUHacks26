@@ -85,36 +85,41 @@ async def refresh_daily() -> None:
         log.error("couldn't read today's usage (is the usage table created?); the global cap counts from 0", exc_info=True)
 
 
-def check_ip(ip: str, action: str) -> None:
-    hits = ip_hits.get((ip, action))
+def check_ip(ip: str, key: str, action: str, multiplier: int) -> None:
+    """`key` names the counter (guests get their own); `action` picks the limits."""
+    hits = ip_hits.get((ip, key))
     if not hits:
         return
     now = time.time()
     while hits and hits[0] < now - DAY:
         hits.popleft()
     for window, maximum, _ in USER_LIMITS[action]:
-        if sum(t > now - window for t in hits) >= maximum * IP_LIMIT_MULTIPLIER:
+        if sum(t > now - window for t in hits) >= maximum * multiplier:
             log.warning("ip limit hit ip=%s action=%s", ip, action)
             raise limited(IP_LIMIT_MESSAGE)
 
 
-def record_ip(ip: str, action: str) -> None:
-    ip_hits[(ip, action)].append(time.time())
+def record_ip(ip: str, key: str) -> None:
+    ip_hits[(ip, key)].append(time.time())
     if len(ip_hits) > 5000:  # drop IPs with nothing in the last day
         for key in [k for k, q in ip_hits.items() if not q or q[-1] < time.time() - DAY]:
             del ip_hits[key]
 
 
-async def charge(user_id: str, action: str, request: Request) -> None:
+async def charge(user_id: str | None, action: str, request: Request) -> None:
     """Raises 503 / 429 when a limit is hit; otherwise records this use. Call it right before the Gemini call,
-    after any cache lookup (cache hits must not count)."""
+    after any cache lookup (cache hits must not count).
+    user_id=None is a guest: only the global cap and a stricter per-IP limit (the plain user limits, no multiplier,
+    in their own counter) apply, and nothing is written to `usage`."""
     ip = client_ip(request)
+    guest = user_id is None
+    key = f"{action}:guest" if guest else action
     await refresh_daily()
     if daily["count"] >= GEMINI_DAILY_CAP:
         raise limited(RESTING_MESSAGE, status=503)
-    check_ip(ip, action)
+    check_ip(ip, key, action, 1 if guest else IP_LIMIT_MULTIPLIER)
 
-    for window, maximum, message in USER_LIMITS[action]:
+    for window, maximum, message in [] if guest else USER_LIMITS[action]:
         since = (datetime.now(timezone.utc) - timedelta(seconds=window)).isoformat()
         try:
             used = await asyncio.to_thread(db.count_usage, user_id, action, since)
@@ -125,11 +130,13 @@ async def charge(user_id: str, action: str, request: Request) -> None:
         if used >= maximum:
             raise limited(message)
 
-    record_ip(ip, action)
+    record_ip(ip, key)
     daily["count"] += 1
     if not daily["warned"] and daily["count"] >= GEMINI_DAILY_CAP * WARN_FRACTION:
         daily["warned"] = True
         log.warning("Gemini daily cap is %d%% used (%d of %d)", WARN_FRACTION * 100, daily["count"], GEMINI_DAILY_CAP)
+    if guest:
+        return
     try:
         await asyncio.to_thread(db.record_usage, user_id, action)
     except Exception:

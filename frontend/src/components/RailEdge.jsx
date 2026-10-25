@@ -1,5 +1,7 @@
+import { useEffect } from "react";
 import { BaseEdge, EdgeLabelRenderer, Position, getSmoothStepPath } from "@xyflow/react";
 import { shortLabel } from "@/utils/layout";
+import { railPaths } from "@/utils/railPaths";
 
 const OUTLINE = "#2B2D31";
 const WOOD = "#7A5230";
@@ -17,9 +19,20 @@ const INTO_TARGET = {
   [Position.Right]: [-1, 0],
 };
 
+// Publishes the drawn path for the tour train (a component of its own because RailEdge returns early, before any hook)
+function PathRegistrar({ id, d }) {
+  useEffect(() => {
+    railPaths.set(id, d);
+    return () => {
+      if (railPaths.get(id) === d) railPaths.delete(id);
+    };
+  }, [id, d]);
+  return null;
+}
+
 // Railway edge: the same smooth-step path is stroked several times, bottom to top, to fake a track.
 export default function RailEdge({
-  sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition, label, data,
+  id, sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition, label, data,
 }) {
   // Edges mount before their handles are measured: bad coordinates would draw stray NaN paths
   const coords = [sourceX, sourceY, targetX, targetY];
@@ -42,6 +55,7 @@ export default function RailEdge({
 
   return (
     <>
+      <PathRegistrar id={id} d={path} />
       <g fill="none" strokeLinejoin="round" pointerEvents="none">
         {/* 1a. Tie outline: slightly fatter/longer dashes in black, sitting under the wood */}
         <path d={path} stroke={OUTLINE} strokeWidth={15} strokeDasharray="8 6" strokeDashoffset={2} />

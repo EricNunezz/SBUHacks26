@@ -26,6 +26,12 @@ import AddRepoProgress from "@/pages/AddRepoProgress.jsx";
 import { useChat } from "@/context/ChatContext";
 import { defaultEdgeOptions } from "@/theme/flow";
 import GrassBackground from "@/components/GrassBackground";
+import useTour from "@/hooks/useTour";
+import TourTrain from "@/components/tour/TourTrain";
+import TourCard from "@/components/tour/TourCard";
+import TourButton from "@/components/tour/TourButton";
+import TourInvite from "@/components/tour/TourInvite";
+import { hasSeenTourInvite, markTourInviteSeen } from "@/utils/tourStorage";
 
 const nodeTypes = { repoNode: RepoNode, scenery: SceneryNode };
 const edgeTypes = { rail: RailEdge };
@@ -68,7 +74,7 @@ function Flow({ explore = false, repos = [], onAddRepo }) {
   const [selectedNode, setSelectedNode] = useState(null);
   const { setViewport, fitView } = useReactFlow();
   const boardRef = useRef(null);
-  const { askAbout, setDiagram } = useChat();
+  const { askAbout, setDiagram, reveal } = useChat();
   const [viewing, setViewing] = useState(null); // { file, node } open in the code panel
 
   // load the diagram whenever the repo changes (logged-in users only)
@@ -216,6 +222,54 @@ function Flow({ explore = false, repos = [], onAddRepo }) {
     fitBoard(600);
   }
 
+  // --- Grand Tour (all hooks stay above the early returns below) ---
+  const tour = useTour({
+    repoId, explore, nodes, edges, flyTo, selectNode: setSelectedNode, keysEnabled: !viewing,
+  });
+  const tourRunning = tour.status === "running";
+  const canTour = ready && !isGuest; // the home page's sample board has no tour
+
+  // Stations as drawn: the current stop glows and passed stops get a VISITED stamp
+  const displayNodes = useMemo(() => {
+    if (!tourRunning) return flowNodes;
+    return flowNodes.map((n) => {
+      if (n.type !== "repoNode") return n;
+      const current = n.id === tour.current?.node_id;
+      const visited = tour.visited.has(n.id);
+      return current || visited ? { ...n, selected: current, data: { ...n.data, tourVisited: visited } } : { ...n, selected: false };
+    });
+  }, [flowNodes, tourRunning, tour.current, tour.visited]);
+
+  // The invitation: once per repo, for signed-in users on their own maps (a fresh map arrives here right after
+  // its progress screen), never while a tour is running
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const tourStatusRef = useRef(tour.status);
+  tourStatusRef.current = tour.status;
+  useEffect(() => {
+    setInviteOpen(false);
+    if (!user || explore || isGuest || !ready || hasSeenTourInvite(user.id, repoId)) return;
+    const timer = setTimeout(() => tourStatusRef.current === "idle" && setInviteOpen(true), 900);
+    return () => clearTimeout(timer);
+  }, [user?.id, explore, isGuest, ready, repoId]);
+
+  function answerInvite(takeTour) {
+    markTourInviteSeen(user.id, repoId);
+    setInviteOpen(false);
+    if (takeTour) tour.start();
+  }
+
+  // Starting the tour any other way counts as answering the invitation too
+  useEffect(() => {
+    if (tourRunning && user) markTourInviteSeen(user.id, repoId);
+  }, [tourRunning, user?.id, repoId]);
+
+  // However the tour ends (End / Close / Esc), close the panel and pull the camera back
+  const wasRunning = useRef(false);
+  useEffect(() => {
+    if (wasRunning.current && !tourRunning) handleClose();
+    wasRunning.current = tourRunning;
+  }, [tourRunning]);
+
   // Which state to show (logged-in users); guests skip straight to the board
   if (!isGuest) {
     if (fetched.forId !== repoId || fetched.state === "loading") {
@@ -272,13 +326,14 @@ function Flow({ explore = false, repos = [], onAddRepo }) {
           )}
         </div>
       )}
+      {canTour && <TourButton tour={tour} />}
       {isGuest && (
         <div className="absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-md border bg-card px-3 py-1 text-xs text-muted-foreground shadow-sm">
           Sample diagram. Sign up to map your own repos
         </div>
       )}
       <ReactFlow
-        nodes={flowNodes}
+        nodes={displayNodes}
         edges={edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
@@ -289,7 +344,22 @@ function Flow({ explore = false, repos = [], onAddRepo }) {
       >
         <GrassBackground />
         <Controls onFitView={fitStations} />
+        {tourRunning && !tour.reduced && (
+          <TourTrain
+            at={nodes.find((n) => n.id === tour.trainAt)}
+            travel={tour.travel}
+            hidden={tour.hidden}
+            onArrive={tour.arrive}
+          />
+        )}
       </ReactFlow>
+      {tourRunning && <TourCard tour={tour} onAsk={reveal} />}
+      <TourInvite
+        open={inviteOpen}
+        repoName={diagram ? `${diagram.owner}/${diagram.name}` : ""}
+        onTake={() => answerInvite(true)}
+        onDecline={() => answerInvite(false)}
+      />
       {selectedNode && (
         <NodePanel
           node={selectedNode}

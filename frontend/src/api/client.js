@@ -106,6 +106,17 @@ export async function getChatHistory(repoId) {
   return request(`/api/repos/${repoId}/chat`);
 }
 
+// The Grand Tour: { stops: [{ node_id, title, narration }] }, generated on the first call and cached by the backend.
+// 429 / 503 (usage limits, with err.limited) and 409 (map not ready) are for the caller to show.
+export async function getTour(repoId) {
+  return request(`/api/repos/${repoId}/tour`);
+}
+
+// Same tour for a featured repo, readable by guests: no token is sent and a 401 never signs anyone out
+export async function getExploreTour(repoId) {
+  return request(`/api/explore/${repoId}/tour`, { pub: true });
+}
+
 // Featured repos (public, no login): [{ id, owner, name, url, summary, featured_tags, node_count }]
 export async function getExplore() {
   return request("/api/explore", { pub: true });

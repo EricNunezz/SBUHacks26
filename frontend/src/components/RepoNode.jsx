@@ -19,6 +19,9 @@ export default function RepoNode({ data, selected }) {
       style={{ width: NODE_WIDTH, height: NODE_HEIGHT, "--line": theme.color }}
       className={`station ${selected ? "is-selected" : ""}`}
     >
+      {/* Tour: stamped on stations the guided tour has already passed */}
+      {data.tourVisited && <div className="tour-stamp" aria-label="Visited">VISITED</div>}
+
       {/* Incoming tracks: one marker per edge down the left wall */}
       {Array.from({ length: inCount }, (_, i) => {
         return (
