@@ -33,7 +33,10 @@ function friendlyError(err, mode, knownAccount = false) {
 //  - true: opened by the home form, so a repo is waiting to be saved
 //  - false: opened by the "Log in" link (returning user), no repo
 // All paths end in onContinue().
-export default function AuthDialog({ open, hasPendingRepo, onCancel, onContinue }) {
+// onAuthStart / onAuthEnd: the parent keeps this dialog on screen from the moment a sign-in is sent until it either
+// fails (onAuthEnd) or finishes (the parent's onContinue). Without that, the session arriving would swap the home page
+// (and this dialog) for the app before the repo is added.
+export default function AuthDialog({ open, hasPendingRepo, onCancel, onContinue, onAuthStart, onAuthEnd }) {
   const { signIn, signUp, resetPassword } = useAuth();
   const [mode, setMode] = useState("login"); // "login" | "signup"
   const [email, setEmail] = useState("");
@@ -80,6 +83,8 @@ export default function AuthDialog({ open, hasPendingRepo, onCancel, onContinue 
     setError(null);
     setNotice("");
     setLoading(true);
+    onAuthStart?.();
+    let succeeded = false;
     let knownAccount = false; // check-email said the account exists
     try {
       if (mode === "login") {
@@ -98,11 +103,13 @@ export default function AuthDialog({ open, hasPendingRepo, onCancel, onContinue 
       } else {
         await signUp(email, password);
       }
+      succeeded = true;
       setBoarded(true); // only runs if sign in / sign up didn't throw; the effect above calls onContinue()
     } catch (err) {
       setError(friendlyError(err, mode, knownAccount));
     } finally {
       setLoading(false);
+      if (!succeeded) onAuthEnd?.(); // failed: the app no longer has to wait for us
     }
   }
 
@@ -129,7 +136,7 @@ export default function AuthDialog({ open, hasPendingRepo, onCancel, onContinue 
   const isLogin = mode === "login";
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onCancel()}>
+    <Dialog open={open} onOpenChange={(next) => !next && !boarded && onCancel()}>
       <DialogContent
         showCloseButton={!boarded}
         className="ticket-shell"

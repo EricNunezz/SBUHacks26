@@ -30,7 +30,22 @@ const pct = (x) => `${Math.round(x * 100)}%`;
 
 // A paper on the table: slight tilt, hard shadow, optional tear-off perforation at `nx` (notches on top and bottom).
 // `stub` is drawn on the left (stubSide "left") or right of the perforation.
-function Doc({ tilt = 0, stub, stubSide = "right", stubWidth = 120, className = "", bodyClass = "", children }) {
+// True on phone-sized screens, where the stubs shrink so the body keeps room
+function useCompact() {
+  const [compact, setCompact] = useState(() => window.matchMedia?.("(max-width: 639px)").matches ?? false);
+  useEffect(() => {
+    const query = window.matchMedia?.("(max-width: 639px)");
+    if (!query) return;
+    const onChange = () => setCompact(query.matches);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
+  return compact;
+}
+
+function Doc({ tilt = 0, stub, stubSide = "right", stubWidth: fullStubWidth = 120, className = "", bodyClass = "", children }) {
+  const compact = useCompact();
+  const stubWidth = compact ? Math.min(fullStubWidth, 92) : fullStubWidth;
   const style = { "--tilt": `${tilt}deg` };
   const perf = {};
   if (stub) {
@@ -87,18 +102,18 @@ function ReportHeader({ owner, name, stats }) {
       stub={(
         <div className="pass-stub -m-3 flex h-[calc(100%+24px)] w-[calc(100%+16px)] flex-col items-center justify-center gap-2 px-2 text-center">
           <TrainFront className="size-7 text-[#E2C25A]" />
-          <div className="font-mono text-sm font-extrabold uppercase tracking-[0.2em] text-[#E2C25A]">GitStation</div>
+          <div className="font-mono text-[10px] font-extrabold uppercase tracking-[0.06em] text-[#E2C25A] sm:text-sm sm:tracking-[0.2em]">GitStation</div>
         </div>
       )}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="doc-label">Inspection Report · Holder</div>
-          <h1 className="break-words font-mono text-2xl font-extrabold leading-tight sm:text-3xl">
+          <h1 className="font-mono text-2xl font-extrabold leading-tight [overflow-wrap:anywhere] sm:text-3xl">
             {owner && name ? `${owner}/${name}` : "—"}
           </h1>
         </div>
-        <Stamp tone="plain">INSPECTED · {date}</Stamp>
+        <Stamp tone="plain" className="!whitespace-normal text-center">INSPECTED · {date}</Stamp>
       </div>
       <div className="mt-3 flex flex-wrap gap-x-8 gap-y-2 border-t-2 border-dashed border-[#8A8F98] pt-3">
         <Field label="Stars" value={r?.stars?.toLocaleString()} />
@@ -127,7 +142,7 @@ function Report({ stats, diagram }) {
         <Doc
           tilt={-1}
           stubWidth={128}
-          stub={vital && <Stamp tone={vital.tone}>{vital.verdict}</Stamp>}
+          stub={vital && <Stamp tone={vital.tone} className="!px-1.5 !text-[11px] !tracking-[0.06em] sm:!px-[9px] sm:!text-[13px] sm:!tracking-[0.12em]">{vital.verdict}</Stamp>}
         >
           <DocHead
             label="01 / VITAL SIGNS"
