@@ -150,7 +150,7 @@ export default function FreightTrain({ languages, format }) {
           <div
             role="tooltip"
             className="pointer-events-none absolute z-10 -translate-x-1/2 whitespace-nowrap rounded-md border-2 border-[#2B2D31] bg-[#FBF9F5] px-2 py-1 font-mono text-xs shadow-[2px_2px_0_#2B2D31]"
-            style={{ left: `${(tipX / VB_W) * 100}%`, top: "-4px", transform: "translate(-50%, -100%)" }}
+            style={{ left: `${Math.min(80, Math.max(20, (tipX / VB_W) * 100))}%`, top: "-4px", transform: "translate(-50%, -100%)" }} // kept inside the card, even over the first / last car
           >
             <div className="font-bold">{tip.name}</div>
             <div>{pctLabel(tip.percent)} · {format(tip.bytes)}</div>

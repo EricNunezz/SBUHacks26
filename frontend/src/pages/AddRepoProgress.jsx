@@ -16,7 +16,7 @@ const ARRIVED_HOLD_MS = 700; // the ARRIVED stamp stays this long before the dia
 
 // Shown while a repo is being added. runAdd() resolves with the new repo (or throws);
 // onComplete(repo) fires once the train has pulled in; onAddDifferent() leaves after an error.
-export default function AddRepoProgress({ name, runAdd, onComplete, onAddDifferent, differentLabel = "Add a different repo" }) {
+export default function AddRepoProgress({ name, runAdd, onComplete, onAddDifferent, differentLabel = "Pick a different repo" }) {
   const { progress, slow, start, finish, stop } = useEstimatedProgress();
   const [attempt, setAttempt] = useState(0);
   const [error, setError] = useState("");
