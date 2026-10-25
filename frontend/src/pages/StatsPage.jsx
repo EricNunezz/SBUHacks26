@@ -1,25 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { TrainFront } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { getRepoStats, getRepoDiagram } from "@/api/client";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { getCategoryTheme } from "@/theme/categories";
 import { getThemeIcon } from "@/theme/icons";
 import * as T from "@/lib/statsReadings";
 import { vitalSigns, friendliness, materials } from "@/lib/statsReadings";
 import {
-  TONES, MUTED, SpecRow, LinearGauge, ChecklistRow, IssueRow, LanguageBar, HowWeReadThis,
+  MUTED, SpecRow, LinearGauge, ChecklistRow, IssueRow, CargoLines, HowWeReadThis, Stamp,
 } from "@/components/stats/parts";
-const GRID = "rgba(138,143,152,0.18)";
+import { Scenery } from "@/components/stats/town";
+import FreightTrain from "@/components/stats/FreightTrain";
+import TrainLoader from "@/components/TrainLoader";
+import { GRASS, makeTexture } from "@/components/GrassBackground";
 
-const pageStyle = {
-  backgroundColor: "#F5F2EC",
-  backgroundImage: `linear-gradient(${GRID} 1px, transparent 1px), linear-gradient(90deg, ${GRID} 1px, transparent 1px)`,
-  backgroundSize: "24px 24px",
-  color: "#2B2D31",
-};
-const cardStyle = { backgroundColor: "#FBF9F5", border: "1px solid #8A8F98" };
+const pageStyle = { backgroundColor: GRASS, color: "#2B2D31" };
 
 function formatBytes(n) {
   if (n >= 1e6) return `${(n / 1e6).toFixed(1)} MB`;
@@ -27,79 +24,91 @@ function formatBytes(n) {
   return `${n} B`;
 }
 
-function Readout({ label, value }) {
+const SIZE_BANDS = [["TINY", 1e6], ["SMALL", 1e7], ["MEDIUM", 1e8]]; // bytes; above the last is LARGE
+const sizeVerdict = (bytes) => (SIZE_BANDS.find(([, max]) => bytes < max)?.[0] ?? "LARGE");
+const pct = (x) => `${Math.round(x * 100)}%`;
+
+// A paper on the table: slight tilt, hard shadow, optional tear-off perforation at `nx` (notches on top and bottom).
+// `stub` is drawn on the left (stubSide "left") or right of the perforation.
+function Doc({ tilt = 0, stub, stubSide = "right", stubWidth = 120, className = "", bodyClass = "", children }) {
+  const style = { "--tilt": `${tilt}deg` };
+  const perf = {};
+  if (stub) {
+    // the perforation sits stubWidth in from the stub's outer edge (+3px on the edge layer for the iron outline)
+    style["--nxe"] = `${stubSide} ${stubWidth + 3}px`;
+    style["--nxf"] = `${stubSide} ${stubWidth}px`;
+    perf[stubSide] = stubWidth - 1;
+  }
+  const stubEl = stub && <div className="doc-stub" style={{ width: stubWidth }}>{stub}</div>;
   return (
-    <div className="font-mono">
-      <div className="text-[10px] uppercase tracking-widest" style={{ color: MUTED }}>{label}</div>
-      <div className="text-sm">{value ?? "—"}</div>
+    <div className={`doc ${className}`} style={style}>
+      <div className="doc-edge">
+        <div className="doc-face">
+          {stubSide === "left" && stubEl}
+          <div className={`doc-body ${bodyClass}`}>{children}</div>
+          {stubSide === "right" && stubEl}
+          {stub && <span className="doc-perf" style={perf} aria-hidden="true" />}
+        </div>
+      </div>
     </div>
   );
 }
 
+// Label row shared by every document: section number + "How we read this"
+function DocHead({ label, reading }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="doc-label">{label}</div>
+      {reading && <HowWeReadThis>{reading}</HowWeReadThis>}
+    </div>
+  );
+}
+
+const NoData = () => <p className="mt-3 font-mono text-sm" style={{ color: MUTED }}>No data available</p>;
+
+function Field({ label, value }) {
+  return (
+    <div className="font-mono">
+      <div className="text-[9px] font-bold uppercase tracking-[0.18em]" style={{ color: MUTED }}>{label}</div>
+      <div className="text-sm font-bold">{value ?? "—"}</div>
+    </div>
+  );
+}
+
+// Header = SEASON PASS
 function ReportHeader({ owner, name, stats }) {
   const r = stats?.repo;
   const date = stats?.fetched_at ? new Date(stats.fetched_at).toISOString().slice(0, 10) : "—";
   return (
-    <header className="flex flex-wrap items-start justify-between gap-4 pb-4" style={{ borderBottom: "2px solid #B87333" }}>
-      <div className="space-y-3">
-        <div className="font-mono text-[10px] uppercase tracking-widest" style={{ color: "#B87333" }}>Inspection Report</div>
-        <h1 className="font-mono text-xl font-semibold">{owner && name ? `${owner}/${name}` : "—"}</h1>
-        <div className="flex flex-wrap gap-6">
-          <Readout label="Stars" value={r?.stars?.toLocaleString()} />
-          <Readout label="Forks" value={r?.forks?.toLocaleString()} />
-          <Readout label="License" value={r?.license} />
-          <Readout label="Branch" value={r?.default_branch} />
+    <Doc
+      tilt={-0.6}
+      stubSide="left"
+      stubWidth={140}
+      stub={(
+        <div className="pass-stub -m-3 flex h-[calc(100%+24px)] w-[calc(100%+16px)] flex-col items-center justify-center gap-2 px-2 text-center">
+          <TrainFront className="size-7 text-[#E2C25A]" />
+          <div className="font-mono text-sm font-extrabold uppercase tracking-[0.2em] text-[#E2C25A]">GitStation</div>
         </div>
-      </div>
-      <div className="px-3 py-2 font-mono text-xs tracking-widest" style={{ border: "2px solid #B87333", color: "#B87333" }}>
-        INSPECTED · {date}
-      </div>
-    </header>
-  );
-}
-
-function SectionCard({ label, verdict, tone, why, reading, prominent, className = "", children }) {
-  return (
-    <section
-      className={`space-y-3 ${prominent ? "p-6" : "p-5"} ${className}`}
-      style={prominent ? { ...cardStyle, borderTop: "3px solid #B87333" } : cardStyle}
-    >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="font-mono text-[11px] uppercase tracking-widest" style={{ color: MUTED }}>{label}</div>
-        {reading && <HowWeReadThis>{reading}</HowWeReadThis>}
-      </div>
-      {verdict ? (
-        <>
-          <div className="font-mono text-3xl font-bold" style={{ color: TONES[tone] ?? "#2B2D31" }}>{verdict}</div>
-          {why && <p className="text-sm" style={{ color: MUTED }}>{why}</p>}
-          {children}
-        </>
-      ) : (
-        <p className="font-mono text-sm" style={{ color: MUTED }}>No data available</p>
       )}
-    </section>
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="doc-label">Inspection Report · Holder</div>
+          <h1 className="break-words font-mono text-2xl font-extrabold leading-tight sm:text-3xl">
+            {owner && name ? `${owner}/${name}` : "—"}
+          </h1>
+        </div>
+        <Stamp tone="plain">INSPECTED · {date}</Stamp>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-x-8 gap-y-2 border-t-2 border-dashed border-[#8A8F98] pt-3">
+        <Field label="Stars" value={r?.stars?.toLocaleString()} />
+        <Field label="Forks" value={r?.forks?.toLocaleString()} />
+        <Field label="License" value={r?.license} />
+        <Field label="Branch" value={r?.default_branch} />
+      </div>
+    </Doc>
   );
 }
-
-function SkeletonCard({ label, className = "" }) {
-  return (
-    <section className={`space-y-3 p-5 ${className}`} style={cardStyle}>
-      <div className="font-mono text-[11px] uppercase tracking-widest" style={{ color: MUTED }}>{label}</div>
-      <div className="font-mono text-sm" style={{ color: MUTED }}>INSPECTING…</div>
-      <Skeleton className="h-4 w-3/4" style={{ backgroundColor: "#E8E3D9" }} />
-      <Skeleton className="h-4 w-1/2" style={{ backgroundColor: "#E8E3D9" }} />
-    </section>
-  );
-}
-
-const CARDS = [
-  { key: "vital", label: "01 / VITAL SIGNS" },
-  { key: "friendly", label: "02 / NEWCOMER FRIENDLINESS" },
-  { key: "help", label: "03 / WHERE YOU CAN HELP", className: "md:col-span-2" },
-  { key: "materials", label: "04 / SIZE & MATERIALS" },
-];
-
-const pct = (x) => `${Math.round(x * 100)}%`;
 
 function Report({ stats, diagram }) {
   const vital = vitalSigns(stats);
@@ -107,108 +116,174 @@ function Report({ stats, diagram }) {
   const mats = materials(stats);
   const act = stats.activity;
   const issues = stats.issues;
-  const gfi = issues?.good_first_count;
   const counts = {};
   (diagram?.nodes ?? []).forEach((n) => (counts[n.category] = (counts[n.category] ?? 0) + 1));
-  const helpQuery = encodeURIComponent('is:issue is:open label:"help wanted"');
+  const wholeBytes = stats.repo ? stats.repo.size_kb * 1000 : null;
 
   return (
     <>
-      <SectionCard
-        label="01 / VITAL SIGNS"
-        verdict={vital?.verdict} tone={vital?.tone} why={vital?.reasons.join(" · ")}
-        reading={vital && (
-          <>
-            <p>RUNNING: pushed within {T.RUNNING_MAX_DAYS} days and {T.RUNNING_MIN_COMMITS}+ commits in 90 days.</p>
-            <p>IDLING: pushed within {T.IDLING_MAX_DAYS} days.</p>
-            <p>COLD: anything older.</p>
-          </>
-        )}
-      >
-        {act && (
-          <div>
-            <SpecRow label="Days since push" value={act.days_since_push} />
-            <SpecRow label="Commits, 90 days" value={`${act.commits_90d}${act.commits_90d_capped ? "+" : ""}`} />
-            <SpecRow
-              label="Latest release"
-              value={act.latest_release ? `${act.latest_release.tag} · ${act.latest_release.published_at.slice(0, 10)}` : "None"}
-            />
-            <LinearGauge days={act.days_since_push} />
-          </div>
-        )}
-      </SectionCard>
-
-      <SectionCard
-        label="02 / NEWCOMER FRIENDLINESS"
-        verdict={friendly?.verdict} tone={friendly?.tone}
-        why={friendly?.reasons.join(" · ")}
-        reading={friendly && (
-          <>
-            <p>Checks good first issues, CONTRIBUTING, code of conduct and issue templates. Missing data is skipped.</p>
-            <p>WELCOMING: {pct(T.WELCOMING_MIN)}+ of checks pass.</p>
-            <p>WORKABLE: {pct(T.WORKABLE_MIN)}+ pass.</p>
-            <p>ROUGH: fewer than that.</p>
-          </>
-        )}
-      >
-        {friendly?.items.map((i) => <ChecklistRow key={i.label} {...i} />)}
-      </SectionCard>
-
-      <SectionCard
-        prominent className="md:col-span-2"
-        label="03 / WHERE YOU CAN HELP"
-        verdict={issues ? (gfi > 0 ? `${gfi} FOR BEGINNERS` : "NONE TAGGED") : null}
-        tone={gfi > 0 ? "good" : "mid"}
-        reading={<p>Open issues labeled "good first issue" (newest 5 shown) and "help wanted" on GitHub.</p>}
-      >
-        {issues && (
-          <>
-            <div className="font-mono text-sm" style={{ color: MUTED }}>
-              {gfi ?? "?"} good first issues · {issues.help_wanted_count ?? "?"} help wanted
-            </div>
-            {issues.good_first.length ? (
-              <div>{issues.good_first.map((i) => <IssueRow key={i.number} issue={i} />)}</div>
-            ) : (
-              <p className="text-sm">
-                No issues tagged for beginners right now.{" "}
-                {diagram?.url && (
-                  <a href={`${diagram.url}/issues?q=${helpQuery}`} target="_blank" rel="noreferrer" className="underline" style={{ color: "#B87333" }}>
-                    Browse help wanted issues
-                  </a>
-                )}
-              </p>
+      <div className="grid gap-10 md:grid-cols-2">
+        {/* 01 DEPARTURE TICKET */}
+        <Doc
+          tilt={-1}
+          stubWidth={128}
+          stub={vital && <Stamp tone={vital.tone}>{vital.verdict}</Stamp>}
+        >
+          <DocHead
+            label="01 / VITAL SIGNS"
+            reading={vital && (
+              <>
+                <p>RUNNING: pushed within {T.RUNNING_MAX_DAYS} days and {T.RUNNING_MIN_COMMITS}+ commits in 90 days.</p>
+                <p>IDLING: pushed within {T.IDLING_MAX_DAYS} days.</p>
+                <p>COLD: anything older.</p>
+              </>
             )}
-          </>
-        )}
-      </SectionCard>
-
-      <SectionCard
-        label="04 / SIZE & MATERIALS"
-        verdict={mats ? formatBytes(mats.total) : null}
-        reading={<p>Language share is by bytes of code, top {T.TOP_LANGUAGES} languages with the rest grouped as Other.</p>}
-      >
-        {mats && (
-          <>
-            <LanguageBar languages={mats.languages} />
-            {stats.repo && <SpecRow label="Repo size" value={formatBytes(stats.repo.size_kb * 1000)} />}
-            <div className="flex flex-wrap gap-x-4 gap-y-2 pt-1 font-mono text-xs">
-              {Object.keys(counts).length ? (
-                Object.entries(counts).map(([cat, n]) => {
-                  const theme = getCategoryTheme(cat);
-                  const Icon = getThemeIcon(theme);
-                  return (
-                    <span key={cat} className="flex items-center gap-1.5" style={{ color: theme.color }}>
-                      <Icon className="size-4" /> {n} {cat}
-                    </span>
-                  );
-                })
-              ) : (
-                <span style={{ color: MUTED }}>No diagram nodes yet</span>
+          />
+          {vital ? (
+            <>
+              <div className="doc-title mt-1">Last departure</div>
+              {act && (
+                <div className="font-mono">
+                  <span className="text-4xl font-extrabold">{act.days_since_push}</span>
+                  <span className="ml-2 text-sm" style={{ color: MUTED }}>days since push</span>
+                </div>
               )}
+              <p className="mt-1 text-sm" style={{ color: MUTED }}>{vital.reasons.join(" · ")}</p>
+              {act && (
+                <div className="mt-2">
+                  <SpecRow label="Days since push" value={act.days_since_push} />
+                  <SpecRow label="Commits, 90 days" value={`${act.commits_90d}${act.commits_90d_capped ? "+" : ""}`} />
+                  <SpecRow
+                    label="Latest release"
+                    value={act.latest_release ? `${act.latest_release.tag} · ${act.latest_release.published_at.slice(0, 10)}` : "None"}
+                  />
+                  <LinearGauge days={act.days_since_push} />
+                </div>
+              )}
+            </>
+          ) : <NoData />}
+        </Doc>
+
+        {/* 02 BOARDING PASS */}
+        <Doc tilt={1.2} stubWidth={92} stub={<div className="barcode" aria-hidden="true" />}>
+          <DocHead
+            label="02 / NEWCOMER FRIENDLINESS"
+            reading={friendly && (
+              <>
+                <p>Checks good first issues, CONTRIBUTING, code of conduct and issue templates. Missing data is skipped.</p>
+                <p>WELCOMING: {pct(T.WELCOMING_MIN)}+ of checks pass.</p>
+                <p>WORKABLE: {pct(T.WORKABLE_MIN)}+ pass.</p>
+                <p>ROUGH: fewer than that.</p>
+              </>
+            )}
+          />
+          {friendly ? (
+            <>
+              <div className="mt-1 flex flex-wrap items-center gap-3">
+                <div className="doc-title">Boarding pass</div>
+                <Stamp tone={friendly.tone}>{friendly.verdict}</Stamp>
+              </div>
+              {friendly.reasons.length > 0 && <p className="mt-1 text-sm" style={{ color: MUTED }}>{friendly.reasons.join(" · ")}</p>}
+              <div className="mt-2">
+                {friendly.items.map((i) => <ChecklistRow key={i.label} {...i} />)}
+              </div>
+            </>
+          ) : <NoData />}
+        </Doc>
+      </div>
+
+      {/* 03 LUGGAGE TAGS */}
+      <section className="space-y-5">
+        <Doc tilt={0.5}>
+          <DocHead
+            label="03 / WHERE YOU CAN HELP"
+            reading={<p>The newest open issues on GitHub (up to 5), whatever their labels.</p>}
+          />
+          {issues ? (
+            <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="doc-title">Baggage claim: open issues</div>
+                <div className="font-mono text-sm" style={{ color: MUTED }}>
+                  {issues.open_count.toLocaleString()} open {issues.open_count === 1 ? "issue" : "issues"}
+                </div>
+              </div>
+              <Stamp tone={issues.open_count > 0 ? "good" : "mid"}>
+                {issues.open_count > 0 ? `${issues.open_count.toLocaleString()} OPEN` : "NONE OPEN"}
+              </Stamp>
             </div>
-          </>
+          ) : <p className="mt-3 font-mono text-sm text-[#A0442C]">Couldn't load issues, try again later</p>}
+        </Doc>
+        {issues && (
+          issues.items.length ? (
+            <div className="grid gap-x-8 gap-y-6 px-2 sm:grid-cols-2 lg:grid-cols-3">
+              {issues.items.map((i, idx) => <IssueRow key={i.number} issue={i} index={idx} />)}
+            </div>
+          ) : (
+            <div className="mx-auto max-w-sm px-2">
+              <div className="tag" style={{ transform: "rotate(1deg)" }}>
+                <div className="tag-edge">
+                  <div className="tag-face space-y-1 text-center">
+                    <p className="font-mono text-sm font-bold">No bags to claim right now</p>
+                    {diagram?.url && (
+                      <a href={`${diagram.url}/issues`} target="_blank" rel="noreferrer" className="inline-block text-sm underline underline-offset-2" style={{ color: "#8A4E1C" }}>
+                        Browse issues on GitHub
+                      </a>
+                    )}
+                  </div>
+                </div>
+                <span className="tag-string" aria-hidden="true" />
+              </div>
+            </div>
+          )
         )}
-      </SectionCard>
+      </section>
+
+      {/* 04 CARGO MANIFEST */}
+      <Doc tilt={-0.5} bodyClass="manifest-lines">
+        <DocHead
+          label="04 / SIZE & MATERIALS"
+          reading={(
+            <>
+              <p>Language share is by bytes of code, top {T.TOP_LANGUAGES} languages with the rest grouped as Other.</p>
+              <p>TINY: under 1 MB. SMALL: under 10 MB.</p>
+              <p>MEDIUM: under 100 MB. LARGE: 100 MB or more.</p>
+              <p>The verdict uses the whole repo size, not just code.</p>
+            </>
+          )}
+        />
+        {mats ? (
+          <div className="mt-1 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="doc-title">Freight manifest</div>
+              <Stamp tone="plain">{sizeVerdict(wholeBytes ?? mats.total)}</Stamp>
+            </div>
+            <div className="flex flex-wrap gap-x-10 gap-y-2">
+              <Field label="Code (by language)" value={formatBytes(mats.total)} />
+              {wholeBytes != null && <Field label="Whole repo" value={formatBytes(wholeBytes)} />}
+            </div>
+            <FreightTrain languages={mats.languages} format={formatBytes} />
+            <CargoLines languages={mats.languages} format={formatBytes} />
+            <div>
+              <div className="doc-label mb-1.5">Station counts</div>
+              <div className="flex flex-wrap gap-x-5 gap-y-2 font-mono text-sm">
+                {Object.keys(counts).length ? (
+                  Object.entries(counts).map(([cat, n]) => {
+                    const theme = getCategoryTheme(cat);
+                    const Icon = getThemeIcon(theme);
+                    return (
+                      <span key={cat} className="flex items-center gap-1.5 font-bold" style={{ color: theme.color }}>
+                        <Icon className="size-4" /> {n} {cat}
+                      </span>
+                    );
+                  })
+                ) : (
+                  <span style={{ color: MUTED }}>No diagram nodes yet</span>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : <NoData />}
+      </Doc>
     </>
   );
 }
@@ -232,30 +307,42 @@ export default function StatsPage() {
     if (user) load();
   }, [user, load]);
 
+  // Grass tile is generated once, after first paint of the flat colour (same texture as the map)
+  const [grass, setGrass] = useState(null);
+  useEffect(() => { setGrass(makeTexture()); }, []);
+
   const current = state.forId === repoId ? state : { status: "loading", stats: null };
 
   return (
-    <div className="h-full overflow-auto" style={pageStyle}>
-      <div className="mx-auto max-w-5xl space-y-6 p-6">
+    <div
+      className="h-full overflow-auto"
+      style={{ containerType: "inline-size", ...(grass ? { ...pageStyle, backgroundImage: `url(${grass})`, backgroundSize: "1024px 1024px" } : pageStyle) }}
+    >
+      <div className="relative min-h-full">
+      <Scenery />
+      <div className="relative mx-auto max-w-[1100px] space-y-10 px-6 py-10">
         {!user ? (
-          <p className="py-20 text-center font-mono text-sm" style={{ color: MUTED }}>Sign up to see repo stats</p>
+          <div className="mx-auto my-20 max-w-sm"><Doc><p className="text-center font-mono text-sm" style={{ color: MUTED }}>Sign up to see repo stats</p></Doc></div>
         ) : (
           <>
             <ReportHeader owner={repo?.id === repoId ? repo.owner : null} name={repo?.id === repoId ? repo.name : null} stats={current.stats} />
             {current.status === "error" ? (
-              <div className="space-y-3 p-5" style={cardStyle}>
-                <p className="font-mono text-sm" style={{ color: TONES.bad }}>Inspection failed</p>
-                <Button variant="outline" size="sm" onClick={load}>Retry</Button>
+              <div className="mx-auto max-w-sm">
+                <Doc>
+                  <p className="font-mono text-sm font-bold text-[#A0442C]">Inspection failed</p>
+                  <Button variant="outline" size="sm" className="mt-3" onClick={load}>Retry</Button>
+                </Doc>
+              </div>
+            ) : current.status === "loading" ? (
+              <div className="flex justify-center py-16" aria-busy>
+                <TrainLoader message="INSPECTING THE LINE…" />
               </div>
             ) : (
-              <div className="grid gap-4 md:grid-cols-2">
-                {current.status === "loading"
-                  ? CARDS.map((c) => <SkeletonCard key={c.key} label={c.label} className={c.className} />)
-                  : <Report stats={current.stats} diagram={repo?.id === repoId ? repo : null} />}
-              </div>
+              <Report stats={current.stats} diagram={repo?.id === repoId ? repo : null} />
             )}
           </>
         )}
+      </div>
       </div>
     </div>
   );

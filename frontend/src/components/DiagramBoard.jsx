@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
-import { Check, Cog } from "lucide-react";
+import { useNavigate, useParams } from "react-router-dom";
+import { Check } from "lucide-react";
+import TrainLoader from "@/components/TrainLoader";
 import RepoNode from "@/components/RepoNode";
 import RailEdge from "@/components/RailEdge";
 import SceneryNode from "@/components/SceneryNode";
@@ -28,8 +29,9 @@ import { defaultEdgeOptions } from "@/theme/flow";
 import GrassBackground from "@/components/GrassBackground";
 import useTour from "@/hooks/useTour";
 import TourTrain from "@/components/tour/TourTrain";
-import TourCard from "@/components/tour/TourCard";
+import TourCard, { TourPausedPill } from "@/components/tour/TourCard";
 import TourButton from "@/components/tour/TourButton";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import TourInvite from "@/components/tour/TourInvite";
 import { hasSeenTourInvite, markTourInviteSeen } from "@/utils/tourStorage";
 
@@ -41,6 +43,23 @@ const PANEL_INSET = 416; // NodePanel: w-96 (384) + right-4 (16) + a 16px gap
 // Default view: fit the stations; never zoom out past minZoom so names stay readable
 const FIT = { padding: 0.08, minZoom: 0.5, maxZoom: 1.1 };
 const FOCUS_ZOOM = { min: 0.5, max: 0.8 };
+const TOUR_ZOOM = { min: 0.35, max: 0.9 }; // tour camera: current + next station, labels stay readable
+const TOUR_PANEL_FALLBACK = 380; // tour panel width (px) before it is on screen (wide screens)
+const TOUR_SHEET_FALLBACK = 260; // tour bottom sheet height (px) before it is on screen (narrow screens)
+const NARROW_QUERY = "(max-width: 899px)";
+
+// True on narrow screens, where the tour panel becomes a bottom sheet
+function useNarrow() {
+  const [narrow, setNarrow] = useState(() => window.matchMedia?.(NARROW_QUERY).matches ?? false);
+  useEffect(() => {
+    const query = window.matchMedia?.(NARROW_QUERY);
+    if (!query) return;
+    const onChange = () => setNarrow(query.matches);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
+  return narrow;
+}
 
 
 function Centered({ children }) {
@@ -51,12 +70,13 @@ function Centered({ children }) {
   );
 }
 
-function SpinnerMessage({ children }) {
+// Full-board loading state: the grass board with the train loader in the middle
+function BoardLoading({ message }) {
   return (
-    <>
-      <Cog className="size-8 animate-spin" />
-      <p>{children}</p>
-    </>
+    <div className="relative isolate flex h-full w-full items-center justify-center">
+      <GrassBackground />
+      <TrainLoader message={message} />
+    </div>
   );
 }
 
@@ -164,12 +184,44 @@ function Flow({ explore = false, repos = [], onAddRepo }) {
     [setViewport],
   );
 
+  const narrow = useNarrow();
+  const [tourPaused, setTourPaused] = useState(false); // NodePanel open during a tour: the card is a small pill
+  const tourLiveRef = useRef(false); // a tour is running and not paused
+  const tourReframeRef = useRef(null); // re-frames the tour camera (set once the tour exists, below)
+
+  // Tour camera: fit these stations into the part of the board not covered by the tour panel
+  // (left of it on wide screens, above the bottom sheet on narrow ones)
+  const frameStops = useCallback(
+    (list, duration) => {
+      const el = boardRef.current;
+      if (!el || !list.length) return;
+      const x1 = Math.min(...list.map((n) => n.position.x));
+      const y1 = Math.min(...list.map((n) => n.position.y));
+      const x2 = Math.max(...list.map((n) => n.position.x + NODE_WIDTH));
+      const y2 = Math.max(...list.map((n) => n.position.y + NODE_HEIGHT));
+      const card = el.querySelector("[data-tour-card]");
+      const insetX = narrow ? 0 : (card?.offsetWidth ?? TOUR_PANEL_FALLBACK) + 32;
+      const insetY = narrow ? (card?.offsetHeight ?? TOUR_SHEET_FALLBACK) + 24 : 0;
+      const view = getViewportForBounds(
+        { x: x1, y: y1, width: x2 - x1, height: y2 - y1 },
+        Math.max(el.clientWidth - insetX, 160),
+        Math.max(el.clientHeight - insetY, 120),
+        TOUR_ZOOM.min,
+        TOUR_ZOOM.max,
+        0.12,
+      );
+      setViewport(view, { duration });
+    },
+    [setViewport, narrow],
+  );
+
   // Select a node, open its panel, and fly the camera to it.
   // Shared by node clicks on the board and by node chips in the chat.
   const focusNode = useCallback(
     (nodeId) => {
       const node = nodes.find((n) => n.id === nodeId);
       if (!node) return;
+      if (tourLiveRef.current) setTourPaused(true); // opening a station panel pauses a running tour
       setSelectedNode(node);
       flyTo(node, 600);
     },
@@ -198,6 +250,7 @@ function Flow({ explore = false, repos = [], onAddRepo }) {
       }
       clearTimeout(timer);
       timer = setTimeout(() => {
+        if (tourReframeRef.current) return tourReframeRef.current(); // tour: keep current + next stop in view
         const sel = selectedRef.current;
         if (sel) flyTo(sel, 300);
         else fitBoard(300);
@@ -212,11 +265,14 @@ function Flow({ explore = false, repos = [], onAddRepo }) {
 
   //nested function to handle clicking a node
   function handleNodeClick(event, node) {
+    if (tourLiveRef.current) return; // the tour card is the only panel while a tour runs
     focusNode(node.id);
   }
 
   //nested function to close the panel (zoom out to everything)
   function handleClose() {
+    if (tourLiveRef.current) return;
+    if (tourPaused) return resumeTour(); // closing the station panel resumes the tour
     if (!selectedNode) return;
     setSelectedNode(null);
     fitBoard(600);
@@ -224,9 +280,30 @@ function Flow({ explore = false, repos = [], onAddRepo }) {
 
   // --- Grand Tour (all hooks stay above the early returns below) ---
   const tour = useTour({
-    repoId, explore, nodes, edges, flyTo, selectNode: setSelectedNode, keysEnabled: !viewing,
+    repoId, explore, nodes, edges, frame: frameStops, keysEnabled: !viewing && !tourPaused,
   });
   const tourRunning = tour.status === "running";
+  tourLiveRef.current = tourRunning && !tourPaused;
+  const stopNode = nodes.find((n) => n.id === tour.stops[tour.index]?.node_id);
+  const nextStopNode = nodes.find((n) => n.id === tour.stops[tour.index + 1]?.node_id);
+  tourReframeRef.current = tourLiveRef.current && stopNode ? () => frameStops([stopNode, nextStopNode].filter(Boolean), 300) : null;
+  useEffect(() => {
+    tourReframeRef.current?.(); // layout switched between side panel and bottom sheet
+  }, [narrow]);
+  // "View files": open the station's panel and pause the tour card
+  const viewStopFiles = () => {
+    if (!stopNode) return;
+    setTourPaused(true);
+    setSelectedNode(stopNode);
+    flyTo(stopNode, 400);
+  };
+  // Back to the tour card: close the panels and frame the stop again
+  function resumeTour() {
+    setTourPaused(false);
+    setSelectedNode(null);
+    setViewing(null);
+    if (stopNode) frameStops([stopNode, nextStopNode].filter(Boolean), 400);
+  }
   // Same attach as NodePanel's "Ask about this", plus a starter question for the current stop
   const askAboutStop = () => {
     const node = nodes.find((n) => n.id === tour.current?.node_id);
@@ -235,6 +312,10 @@ function Flow({ explore = false, repos = [], onAddRepo }) {
     askAbout(`Tell me more about ${label}. What should I read first here?`, { id: node.id, label, category });
   };
   const canTour = ready && !isGuest; // the home page's sample board has no tour
+  // Signed-out visitors (public /explore maps) see the button, but it asks them to sign in first
+  const navigate = useNavigate();
+  const [signInOpen, setSignInOpen] = useState(false);
+  const tourForButton = user ? tour : { ...tour, start: () => setSignInOpen(true) };
 
   // Stations as drawn: the current stop glows and passed stops get a VISITED stamp
   const displayNodes = useMemo(() => {
@@ -270,10 +351,20 @@ function Flow({ explore = false, repos = [], onAddRepo }) {
     if (tourRunning && user) markTourInviteSeen(user.id, repoId);
   }, [tourRunning, user?.id, repoId]);
 
-  // However the tour ends (End / Close / Esc), close the panel and pull the camera back
+  // A tour starting closes the station and code panels. However it ends (End / Close / Esc) nothing reopens: the
+  // panels stay closed and the camera pulls back to the whole line.
   const wasRunning = useRef(false);
   useEffect(() => {
-    if (wasRunning.current && !tourRunning) handleClose();
+    if (!wasRunning.current && tourRunning) {
+      setSelectedNode(null);
+      setViewing(null);
+      setTourPaused(false);
+    } else if (wasRunning.current && !tourRunning) {
+      setSelectedNode(null);
+      setViewing(null);
+      setTourPaused(false);
+      fitBoard(600);
+    }
     wasRunning.current = tourRunning;
   }, [tourRunning]);
 
@@ -281,9 +372,7 @@ function Flow({ explore = false, repos = [], onAddRepo }) {
   if (!isGuest) {
     if (fetched.forId !== repoId || fetched.state === "loading") {
       return (
-        <Centered>
-          <SpinnerMessage>Loading diagram...</SpinnerMessage>
-        </Centered>
+        <BoardLoading message="PULLING INTO THE STATION…" />
       );
     }
     if (fetched.state === "error") {
@@ -333,7 +422,7 @@ function Flow({ explore = false, repos = [], onAddRepo }) {
           )}
         </div>
       )}
-      {canTour && <TourButton tour={tour} />}
+      {canTour && <TourButton tour={tourForButton} />}
       {isGuest && (
         <div className="absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-md border bg-card px-3 py-1 text-xs text-muted-foreground shadow-sm">
           Sample diagram. Sign up to map your own repos
@@ -360,7 +449,27 @@ function Flow({ explore = false, repos = [], onAddRepo }) {
           />
         )}
       </ReactFlow>
-      {tourRunning && <TourCard tour={tour} onAsk={askAboutStop} />}
+      {tourRunning && !tourPaused && <TourCard
+          tour={tour}
+          node={stopNode}
+          repoName={diagram ? `${diagram.owner}/${diagram.name}` : ""}
+          narrow={narrow}
+          onAsk={askAboutStop}
+          onViewFiles={viewStopFiles}
+        />}
+      {tourRunning && tourPaused && <TourPausedPill onResume={resumeTour} />}
+      <Dialog open={signInOpen} onOpenChange={setSignInOpen}>
+        <DialogContent className="gap-3 bg-[var(--cream)] sm:max-w-sm">
+          <div className="signal-error">
+            <span className="signal-light" aria-hidden="true" />
+            <div>
+              <DialogTitle className="text-lg font-extrabold uppercase tracking-[0.1em]">Sign in to take the tour</DialogTitle>
+              <DialogDescription>You need an account to ride the guided tour.</DialogDescription>
+            </div>
+          </div>
+          <Button onClick={() => navigate("/")}>Sign in</Button>
+        </DialogContent>
+      </Dialog>
       <TourInvite
         open={inviteOpen}
         repoName={diagram ? `${diagram.owner}/${diagram.name}` : ""}

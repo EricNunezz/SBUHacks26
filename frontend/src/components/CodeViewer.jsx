@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Highlight } from "prism-react-renderer";
 import { ChevronRight, ExternalLink, MessageSquare } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
+import TrainLoader from "@/components/TrainLoader";
 import { Button } from "@/components/ui/button";
 import ReactMarkdown from "react-markdown";
 import { analyzeFile, getRepoFile } from "@/api/client";
@@ -150,10 +150,8 @@ export default function CodeViewer({ file, node, repoId, repoUrl, explore = fals
           </div>
           <div className="min-h-0 flex-1 overflow-auto">
             {state.status === "loading" && (
-              <div className="space-y-2 p-4" aria-busy>
-                {[90, 60, 75, 40, 85, 55, 70, 45].map((w, i) => (
-                  <Skeleton key={i} className="h-4" style={{ width: `${w}%` }} />
-                ))}
+              <div className="flex h-full items-center justify-center p-6" aria-busy>
+                <TrainLoader size="sm" message="FETCHING THE BLUEPRINTS…" />
               </div>
             )}
             {state.status === "error" && (
@@ -255,10 +253,8 @@ function FileNote({ file, repoId, explore, onAsk }) {
         <div className="mt-1.5 rounded border-2 border-[var(--iron)] bg-[var(--paper)] p-2.5 text-sm">
           {!canSummarize && <p className="text-muted-foreground">Sign up to get file summaries.</p>}
           {canSummarize && state.status === "loading" && (
-            <div className="space-y-2" aria-busy>
-              {[95, 80, 60].map((w, i) => (
-                <Skeleton key={i} className="h-3.5" style={{ width: `${w}%` }} />
-              ))}
+            <div className="flex justify-center py-1" aria-busy>
+              <TrainLoader size="sm" message="FETCHING THE BLUEPRINTS…" />
             </div>
           )}
           {canSummarize && state.status === "error" && (

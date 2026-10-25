@@ -638,42 +638,263 @@ body,
   box-shadow: 2px 2px 0 var(--iron);
 }
 
-/* Auth popup = ticket window */
-.ticket-window { background: var(--cream); }
+/* Auth popup = a physical train ticket. Colors are literal so both themes look the same. */
+[data-slot="dialog-overlay"]:has(+ .ticket-shell) { background: rgba(14, 38, 28, 0.6); }
+.ticket-shell {
+  --stub: 128px; /* notch + perforation height, = the header stub */
+  --notch: 11px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  gap: 0;
+  box-shadow: none;
+  color: #2B2D31;
+  filter: drop-shadow(6px 6px 0 #2B2D31); /* on the shell: a box-shadow would be clipped by the notch masks */
+}
+/* iron outline = an iron layer with bigger notches, the cream face sits 3px inside with smaller ones */
+.ticket-edge, .ticket-face {
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+.ticket-edge {
+  padding: 3px;
+  border-radius: 10px;
+  background: #2B2D31;
+  -webkit-mask-image:
+    radial-gradient(circle calc(var(--notch) + 3px) at 0 var(--stub), #0000 98%, #000),
+    radial-gradient(circle calc(var(--notch) + 3px) at 100% var(--stub), #0000 98%, #000);
+  mask-image:
+    radial-gradient(circle calc(var(--notch) + 3px) at 0 var(--stub), #0000 98%, #000),
+    radial-gradient(circle calc(var(--notch) + 3px) at 100% var(--stub), #0000 98%, #000);
+}
+.ticket-face {
+  position: relative;
+  border-radius: 7px;
+  background: #FBF9F5;
+  -webkit-mask-image:
+    radial-gradient(circle var(--notch) at -3px calc(var(--stub) - 3px), #0000 98%, #000),
+    radial-gradient(circle var(--notch) at calc(100% + 3px) calc(var(--stub) - 3px), #0000 98%, #000);
+  mask-image:
+    radial-gradient(circle var(--notch) at -3px calc(var(--stub) - 3px), #0000 98%, #000),
+    radial-gradient(circle var(--notch) at calc(100% + 3px) calc(var(--stub) - 3px), #0000 98%, #000);
+}
+/* header stub = station sign plate */
 .ticket-window-header {
+  position: relative;
+  box-sizing: border-box;
+  height: calc(var(--stub) - 24px);
+  margin: 12px 18px 12px;
+  justify-content: center;
   gap: 4px;
-  border-bottom: 3px solid var(--iron);
-  background: var(--rail-green);
-  padding: 20px 48px 16px 24px;
+  border: 3px solid #2B2D31;
+  border-radius: 6px;
+  padding: 10px 40px 10px 18px;
   text-align: left;
-  color: var(--cream);
+  color: #FBF9F5;
+  background-color: #1F4D3A;
+  /* brass bolts in the four corners */
+  background-image:
+    radial-gradient(circle 2.5px at 7px 7px, #C9A227 98%, #0000),
+    radial-gradient(circle 2.5px at calc(100% - 7px) 7px, #C9A227 98%, #0000),
+    radial-gradient(circle 2.5px at 7px calc(100% - 7px), #C9A227 98%, #0000),
+    radial-gradient(circle 2.5px at calc(100% - 7px) calc(100% - 7px), #C9A227 98%, #0000);
 }
 .ticket-window-header [data-slot="dialog-title"] {
-  font-size: 20px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 18px;
   font-weight: 800;
   line-height: 1.2;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #FBF9F5;
 }
-.ticket-window-header [data-slot="dialog-description"] { color: color-mix(in srgb, var(--cream) 85%, transparent); }
-.ticket-window [data-slot="dialog-close"] { color: var(--cream); opacity: 1; }
-.ticket-window-body { padding: 20px 24px 24px; }
-/* Log in | Sign up segmented control */
+.ticket-window-header [data-slot="dialog-description"] { font-size: 13px; line-height: 1.35; color: #FBF9F5; }
+.ticket-shell [data-slot="dialog-close"] { top: 22px; right: 28px; color: #FBF9F5; opacity: 1; }
+.ticket-shell [data-slot="dialog-close"]:focus-visible { outline: 2px solid #C9A227; outline-offset: 2px; box-shadow: none; }
+.ticket-perforation {
+  position: absolute;
+  top: calc(var(--stub) - 1px);
+  left: 14px;
+  right: 14px;
+  border-top: 2px dashed #2B2D31;
+}
+.ticket-window-body { position: relative; padding: 14px 24px 22px; }
+.ticket-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  color: #5F646C;
+}
+.ticket-label {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: #2B2D31;
+}
+.ticket-link {
+  border-radius: 3px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  color: #2B2D31;
+}
+.ticket-link:hover { color: #8A4E1C; }
+.ticket-link:focus-visible, .ticket-eye:focus-visible { outline: 3px solid #B87333; outline-offset: 2px; }
+.ticket-helper { font-family: var(--font-mono, ui-monospace, monospace); font-size: 11px; color: #5F646C; }
+.ticket-shell [data-slot="input"] {
+  height: 40px;
+  border: 2px solid #2B2D31;
+  border-radius: 6px;
+  background: #FBF9F5;
+  color: #2B2D31;
+  box-shadow: inset 0 3px 0 rgba(43, 45, 49, 0.12);
+}
+.ticket-shell [data-slot="input"]:focus-visible { outline: 3px solid #B87333; outline-offset: 1px; box-shadow: inset 0 3px 0 rgba(43, 45, 49, 0.12); }
+.ticket-eye {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  display: flex;
+  width: 26px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #2B2D31;
+  border-radius: 5px;
+  background: #FBF9F5;
+  color: #2B2D31;
+}
+.ticket-eye:hover { background: #EFE5BD; }
+.ticket-msg { min-height: 3.25rem; }
+.ticket-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 2px solid #2B2D31;
+  border-radius: 6px;
+  background: #F8DDD7;
+  padding: 6px 10px;
+  font-weight: 600;
+  color: #2B2D31;
+}
+/* Rail signal head: iron housing with a lit red lamp over a dark one. Sits left of every error message. */
+.signal-light {
+  flex: none;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 16px;
+  height: 26px;
+  border: 2px solid #2B2D31;
+  border-radius: 6px;
+  background: #2B2D31;
+  box-shadow: 2px 2px 0 #2B2D31;
+}
+.signal-light::before, .signal-light::after { content: ""; width: 7px; height: 7px; border-radius: 50%; }
+.signal-light::before { background: #D43A2A; box-shadow: inset -1px -1px 0 #9E2518; }
+.signal-light::after { background: #5F646C; }
+/* Error line next to a signal head */
+.signal-error { display: flex; align-items: center; gap: 8px; }
+.ticket-punch {
+  height: 46px;
+  border: 3px solid #2B2D31;
+  border-radius: 8px;
+  background: #B87333;
+  color: #FBF9F5;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  box-shadow: 4px 4px 0 #2B2D31;
+  transition: transform 80ms, box-shadow 80ms;
+}
+.ticket-punch:hover:not(:disabled) { background: #A5632B; }
+.ticket-punch:active:not(:disabled) { transform: translate(3px, 3px); box-shadow: 1px 1px 0 #2B2D31; }
+.ticket-punch:focus-visible { outline: 3px solid #2B2D31; outline-offset: 3px; }
+.ticket-punch:disabled { opacity: 0.7; }
+/* Log in | Sign up = rail switch with a sliding brass block */
 .auth-segment {
+  position: relative;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  overflow: hidden;
-  border: 2px solid var(--iron);
+  padding: 3px;
+  border: 3px solid #2B2D31;
   border-radius: 8px;
+  background: #ECE8DF;
+  box-shadow: inset 0 2px 0 rgba(43, 45, 49, 0.14);
 }
+.auth-segment-block {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  border: 2px solid #2B2D31;
+  border-radius: 5px;
+  background: #C9A227;
+  box-shadow: 0 2px 0 #2B2D31;
+  transition: transform 200ms ease-out;
+}
+.auth-segment[data-mode="signup"] .auth-segment-block { transform: translateX(100%); }
 .auth-segment button {
-  height: 38px;
-  background: var(--cream);
-  color: var(--iron);
-  font-size: 14px;
-  font-weight: 700;
+  position: relative;
+  z-index: 1;
+  height: 34px;
+  border-radius: 5px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #5F646C;
 }
-.auth-segment button + button { border-left: 2px solid var(--iron); }
-.auth-segment button[aria-checked="true"] { background: var(--copper-deep); color: var(--cream); }
-.auth-segment button:focus-visible { outline: 3px solid var(--iron); outline-offset: -5px; }
+.auth-segment button[aria-checked="true"] { color: #2B2D31; }
+.auth-segment button:focus-visible { outline: 3px solid #B87333; outline-offset: 1px; }
+/* success: punched hole + BOARDED stamp */
+.ticket-hole {
+  position: absolute;
+  right: 18px;
+  bottom: 14px;
+  width: 22px;
+  height: 22px;
+  border: 2px solid #2B2D31;
+  border-radius: 50%;
+  background: #0E261C;
+  pointer-events: none;
+  animation: ticket-pop 0.2s ease-out;
+}
+.ticket-boarded {
+  position: absolute;
+  right: 28px;
+  bottom: 34px;
+  padding: 2px 10px;
+  border: 3px double #C0392B;
+  border-radius: 4px;
+  background: rgba(251, 249, 245, 0.92);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: #C0392B;
+  transform: rotate(-12deg);
+  pointer-events: none;
+  animation: ticket-stamp 0.25s ease-out;
+}
+@keyframes ticket-pop { from { transform: scale(0); } to { transform: scale(1); } }
+@keyframes ticket-stamp {
+  from { transform: rotate(-12deg) scale(1.8); opacity: 0; }
+  to { transform: rotate(-12deg) scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-segment-block, .ticket-punch { transition: none; }
+  .ticket-hole, .ticket-boarded { animation: none; }
+}
 
 /* Grand Tour */
 .tour-stamp {
@@ -698,12 +919,153 @@ body,
   from { transform: rotate(-9deg) scale(1.7); opacity: 0; }
   to { transform: rotate(-9deg) scale(1); opacity: 1; }
 }
-.tour-smoke { animation: tour-smoke 1.6s ease-out infinite; transform-box: fill-box; transform-origin: center; }
-.tour-smoke-2 { animation-delay: 0.8s; }
-@keyframes tour-smoke {
+@media (prefers-reduced-motion: reduce) {
+  .tour-stamp { animation: none; }
+}
+
+
+/* ---------- Inspection (Stats): railway documents on the grass ---------- */
+/* A document = wrapper (tilt + hard shadow) > iron edge layer > cream face. Both layers are cut with the same
+   notches (CSS mask), the edge layer's 3px larger, so the iron outline follows the notch. The shadow is a
+   drop-shadow on the wrapper because a box-shadow on a masked element would be clipped.
+   --nxe / --nxf = where the tear-off perforation is (notches sit on the top and bottom edges there); set by Doc. */
+.doc {
+  --nxe: left -999px; /* perforation x on the edge layer, e.g. "right 131px" */
+  --nxf: left -999px; /* same spot on the face layer (3px further in) */
+  --notch: 10px;
+  --tilt: 0deg;
+  position: relative;
+  color: #2B2D31;
+  transform: rotate(var(--tilt));
+  filter: drop-shadow(5px 5px 0 #2B2D31);
+}
+.doc-edge, .doc-face { -webkit-mask-composite: source-in; mask-composite: intersect; }
+.doc-edge {
+  padding: 3px;
+  border-radius: 9px;
+  background: #2B2D31;
+  -webkit-mask-image:
+    radial-gradient(circle calc(var(--notch) + 3px) at var(--nxe) top, #0000 98%, #000),
+    radial-gradient(circle calc(var(--notch) + 3px) at var(--nxe) bottom, #0000 98%, #000);
+  mask-image:
+    radial-gradient(circle calc(var(--notch) + 3px) at var(--nxe) top, #0000 98%, #000),
+    radial-gradient(circle calc(var(--notch) + 3px) at var(--nxe) bottom, #0000 98%, #000);
+}
+.doc-face {
+  position: relative;
+  display: flex;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #FBF9F5;
+  -webkit-mask-image:
+    radial-gradient(circle var(--notch) at var(--nxf) top -3px, #0000 98%, #000),
+    radial-gradient(circle var(--notch) at var(--nxf) bottom -3px, #0000 98%, #000);
+  mask-image:
+    radial-gradient(circle var(--notch) at var(--nxf) top -3px, #0000 98%, #000),
+    radial-gradient(circle var(--notch) at var(--nxf) bottom -3px, #0000 98%, #000);
+}
+.doc-perf { position: absolute; top: 12px; bottom: 12px; border-left: 2px dashed #2B2D31; }
+.doc-body { flex: 1 1 auto; min-width: 0; padding: 16px 20px; }
+.doc-stub { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 12px 8px; }
+.doc-label { font-family: var(--font-mono, ui-monospace, monospace); font-size: 11px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: #5F646C; }
+.doc-title { font-family: var(--font-mono, ui-monospace, monospace); font-size: 20px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+.doc-dashed { border: 2px dashed #8A8F98; border-radius: 4px; }
+
+/* verdict = tilted rubber stamp, coloured by tone */
+.stamp {
+  display: inline-block;
+  padding: 2px 9px;
+  border: 3px double currentColor;
+  border-radius: 5px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+  transform: rotate(-5deg);
+}
+.stamp-good { color: #2F7468; }
+.stamp-mid { color: #7F6508; }
+.stamp-bad { color: #A0442C; }
+.stamp-plain { color: #8A4E1C; }
+
+/* season pass stub */
+.pass-stub { background: #1F4D3A; color: #FBF9F5; }
+/* boarding pass barcode (decorative) */
+.barcode {
+  width: 56px;
+  height: 100%;
+  min-height: 90px;
+  background: repeating-linear-gradient(90deg, #2B2D31 0 2px, transparent 2px 4px, #2B2D31 4px 5px, transparent 5px 8px, #2B2D31 8px 11px, transparent 11px 13px);
+}
+/* track with a train marker */
+.gauge-track {
+  position: relative;
+  height: 14px;
+  background:
+    linear-gradient(#2B2D31, #2B2D31) 0 2px / 100% 2px no-repeat,
+    linear-gradient(#2B2D31, #2B2D31) 0 10px / 100% 2px no-repeat,
+    repeating-linear-gradient(90deg, #8A8F98 0 3px, transparent 3px 10px);
+}
+/* ruled manifest paper */
+.manifest-lines { background-image: repeating-linear-gradient(180deg, transparent 0 31px, #D6D3CC 31px 33px); }
+/* luggage tag */
+.tag { position: relative; margin-top: 16px; }
+.tag-edge, .tag-face {
+  -webkit-mask-image: radial-gradient(circle 7px at 50% 20px, #0000 98%, #000);
+  mask-image: radial-gradient(circle 7px at 50% 20px, #0000 98%, #000);
+}
+.tag-edge {
+  padding: 3px;
+  border-radius: 14px 14px 8px 8px;
+  background: #2B2D31;
+  -webkit-mask-image: radial-gradient(circle 10px at 50% 20px, #0000 98%, #000);
+  mask-image: radial-gradient(circle 10px at 50% 20px, #0000 98%, #000);
+}
+.tag-face {
+  padding: 34px 14px 12px;
+  border-radius: 11px 11px 5px 5px;
+  background: #F4EAC8;
+  -webkit-mask-image: radial-gradient(circle 7px at 50% 17px, #0000 98%, #000);
+  mask-image: radial-gradient(circle 7px at 50% 17px, #0000 98%, #000);
+}
+.tag-string { position: absolute; top: -16px; left: 50%; width: 4px; height: 36px; border: 1.5px solid #2B2D31; border-radius: 2px; background: #B87333; transform: translateX(-50%) rotate(7deg); transform-origin: top; }
+
+/* ---------- TrainLoader ---------- */
+.tl-run { animation: tl-run 3.2s ease-in-out infinite; }
+.tl-face { animation: tl-face 3.2s ease-in-out infinite; transform-origin: 50% 50%; }
+@keyframes tl-run {
+  0% { transform: translateX(0); }
+  45% { transform: translateX(var(--run)); }
+  50% { transform: translateX(var(--run)); }
+  95% { transform: translateX(0); }
+  100% { transform: translateX(0); }
+}
+@keyframes tl-face { /* a smooth turn-around while the train waits at each end */
+  0%, 45% { transform: scaleX(1); }
+  50%, 95% { transform: scaleX(-1); }
+  100% { transform: scaleX(1); }
+}
+.tl-wheel { transform-box: fill-box; transform-origin: center; animation: tl-wheel 0.5s linear infinite; }
+@keyframes tl-wheel { to { transform: rotate(360deg); } }
+.tl-smoke { transform-box: fill-box; transform-origin: center; animation: tl-smoke 1.6s ease-out infinite; }
+.tl-smoke-2 { animation-delay: 0.8s; }
+@keyframes tl-smoke {
   from { transform: translate(0, 0) scale(0.6); opacity: 0.9; }
   to { transform: translate(-8px, -14px) scale(1.3); opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .tour-stamp, .tour-smoke { animation: none; }
+  /* a train standing still in the middle, one smoke puff pulsing slowly */
+  .tl-run { animation: none; transform: translateX(calc(var(--run) / 2)); }
+  .tl-face, .tl-wheel { animation: none; }
+  .tl-smoke-2 { display: none; }
+  .tl-smoke { animation: tl-pulse 2.8s ease-in-out infinite; }
+  @keyframes tl-pulse { 0%, 100% { opacity: 0.2; } 50% { opacity: 0.9; } }
 }
+
+/* TrainProgress: a stopped train (error) keeps its wheels still and the smoke gone */
+.tp-stopped .tl-wheel, .train-still .tl-wheel { animation-play-state: paused; }
+.tp-stopped .tl-smoke { display: none; }
+
+/* Freight train: a still engine (no smoke) */
+.train-calm .tl-smoke { display: none; }

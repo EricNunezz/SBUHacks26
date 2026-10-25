@@ -28,25 +28,29 @@ function splitName(fullName) {
 }
 
 // Top bar repo switcher, styled as a ticket stub: pick a repo or add a new one.
-export default function RepoSwitcher({ repos, selectedRepoId, onOpenAddRepo, onDeleteRepo }) {
+// `mappingName` ("owner/repo"): a new repo is being mapped, so show it instead of the selected one.
+export default function RepoSwitcher({ repos, selectedRepoId, onOpenAddRepo, onDeleteRepo, mappingName }) {
   const navigate = useNavigate();
   const [repoToDelete, setRepoToDelete] = useState(null); // repo awaiting confirmation
 
   const selected = repos.find((r) => r.id === selectedRepoId);
-  const info = selected ? splitName(selected.name) : null;
+  const info = mappingName ? splitName(mappingName) : selected ? splitName(selected.name) : null;
 
   return (
     <>
       <div className="ticket-item topbar-switcher">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button type="button" title={selected?.name ?? "Select a repo"} className="ticket ticket-right topbar-ticket flex items-center gap-2">
+            <button type="button" title={mappingName ?? selected?.name ?? "Select a repo"} className="ticket ticket-right topbar-ticket flex items-center gap-2">
               <div className="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg border-2 border-[var(--iron)] bg-[var(--brass)] text-[var(--iron)]">
                 <GitBranch className="size-4" />
               </div>
               <div className="hide-compact grid min-w-0 flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-bold">{info ? info.name : "Select a repo"}</span>
-                <span className="truncate font-mono text-[11px]">{info ? info.owner : "No repo selected"}</span>
+                <span className="truncate font-mono text-[11px]">
+                  {info ? info.owner : "No repo selected"}
+                  {mappingName && <span className="ml-1 italic">· mapping…</span>}
+                </span>
               </div>
               <ChevronsUpDown className="hide-compact absolute right-2 top-1/2 -translate-y-1/2" />
             </button>

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Search, TrainFront } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
+import TrainLoader from "@/components/TrainLoader";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import MiniMap from "@/components/MiniMap";
 import AddRepoProgress from "@/pages/AddRepoProgress.jsx";
@@ -118,7 +118,11 @@ export default function ExplorePage({ onMapped, onSignUp }) {
           </div>
         </div>
 
-        {state.status === "loading" && <Skeletons />}
+        {state.status === "loading" && (
+          <div className="flex justify-center py-20" aria-busy>
+            <TrainLoader message="PULLING INTO THE STATION…" />
+          </div>
+        )}
         {state.status === "error" && (
           <div className="flex flex-col items-center gap-3 py-16">
             <p className="text-sm text-destructive">Couldn't load the timetable.</p>
@@ -203,16 +207,6 @@ function Platform({ group, lazy, children }) {
         {near ? children : null}
       </div>
     </section>
-  );
-}
-
-function Skeletons() {
-  return (
-    <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3" aria-busy>
-      {Array.from({ length: 6 }, (_, i) => (
-        <Skeleton key={i} className="h-[340px] rounded-[14px]" />
-      ))}
-    </div>
   );
 }
 

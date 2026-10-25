@@ -16,7 +16,7 @@ const NAV_ITEMS = [
 
 // The canopy: logo + repo switcher (left), navigation tickets (centre), signal lamp + user badge (right).
 // Below ~1200px the tickets and the switcher shrink to icon-only squares (see .topbar rules in index.css).
-export default function TopBar({ repos, selectedRepoId, fallbackRepoId, onOpenAddRepo, onDeleteRepo, onLogout, notice }) {
+export default function TopBar({ repos, selectedRepoId, fallbackRepoId, onOpenAddRepo, onDeleteRepo, onLogout, notice, mappingName }) {
   const { user } = useAuth(); // null for guests
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -30,6 +30,7 @@ export default function TopBar({ repos, selectedRepoId, fallbackRepoId, onOpenAd
           selectedRepoId={selectedRepoId}
           onOpenAddRepo={onOpenAddRepo}
           onDeleteRepo={onDeleteRepo}
+          mappingName={mappingName}
         />
       </div>
 

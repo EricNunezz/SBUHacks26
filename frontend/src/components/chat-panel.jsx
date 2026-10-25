@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import TrainLoader from "@/components/TrainLoader";
 import ReactMarkdown from "react-markdown";
 import {
   ArrowUp,
@@ -478,17 +479,8 @@ function Waiting() {
 
   return (
     <div className="space-y-1 text-sm text-muted-foreground">
-      <div className="flex items-center gap-2">
-        <span>Reading the blueprints...</span>
-        <span className="flex gap-1" aria-hidden>
-          {[0, 1, 2].map((i) => (
-            <span
-              key={i}
-              className="size-1.5 animate-pulse rounded-full bg-[var(--steel)]"
-              style={{ animationDelay: `${i * 200}ms` }}
-            />
-          ))}
-        </span>
+      <div className="flex items-center gap-3">
+        <TrainLoader size="sm" message="THE CONDUCTOR IS THINKING…" />
         <span className="font-mono text-xs tabular-nums">{seconds}s</span>
       </div>
       {seconds >= 15 && (
