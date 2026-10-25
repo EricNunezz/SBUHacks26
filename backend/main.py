@@ -73,6 +73,7 @@ from routers.chat import router as chat_router; app.include_router(chat_router) 
 from routers.files import router as files_router; app.include_router(files_router)  # noqa: E402
 from routers.file_analysis import router as file_analysis_router; app.include_router(file_analysis_router)  # noqa: E402
 from routers.tour import router as tour_router; app.include_router(tour_router)  # noqa: E402
+from routers.auth import router as auth_router; app.include_router(auth_router)  # noqa: E402
 
 
 # --- Per-user repos ---

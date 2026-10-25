@@ -40,6 +40,12 @@ async function request(path, { pub = false, ...options } = {}) {
   return res.status === 204 ? null : res.json();
 }
 
+// Does an account exist for this email? Public, rate limited per IP. Resolves to a boolean; throws on network / 429
+export async function checkEmail(email) {
+  const { exists } = await request("/api/auth/check-email", { pub: true, method: "POST", body: JSON.stringify({ email }) });
+  return exists;
+}
+
 // Backend row { id, owner, name, ... } -> the shape the UI uses: { id, name: "owner/repo", url }
 function toRepo(row) {
   return { id: row.id, name: `${row.owner}/${row.name}`, url: row.url };

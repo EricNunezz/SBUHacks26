@@ -38,6 +38,11 @@ export function AuthProvider({ children }) {
     }
   }
 
+  async function resetPassword(email) {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+    if (error) throw error;
+  }
+
   async function signOut() {
     await supabase.auth.signOut();
   }
@@ -48,6 +53,7 @@ export function AuthProvider({ children }) {
     loading,
     signIn,
     signUp,
+    resetPassword,
     signOut,
   };
 
